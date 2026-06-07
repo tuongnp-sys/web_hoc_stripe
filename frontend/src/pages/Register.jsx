@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, Navigate, useNavigate } from 'react-router-dom';
 import { API_URL } from '../api/client';
 import { useAuth } from '../context/AuthContext';
+import useOAuthAvailability from '../hooks/useOAuthAvailability';
 import PasswordStrengthMeter, { passwordStrength } from '../components/PasswordStrengthMeter';
 
 function oauthUrl(provider) {
@@ -19,6 +20,7 @@ export default function Register() {
   const [confirmAge, setConfirmAge] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const oauth = useOAuthAvailability();
 
   if (user) return <Navigate to="/" replace />;
 
@@ -66,15 +68,23 @@ export default function Register() {
     <div className="container">
       <h1>Create Account</h1>
       <div className="card">
-        <div className="social-auth">
-          <a href={oauthUrl('google')} className="btn btn-social btn-google">
-            Continue with Google
-          </a>
-          <a href={oauthUrl('discord')} className="btn btn-social btn-discord">
-            Continue with Discord
-          </a>
-        </div>
-        <p className="divider">or sign up with email</p>
+        {(oauth.google || oauth.discord) && (
+          <>
+            <div className="social-auth">
+              {oauth.google && (
+                <a href={oauthUrl('google')} className="btn btn-social btn-google">
+                  Continue with Google
+                </a>
+              )}
+              {oauth.discord && (
+                <a href={oauthUrl('discord')} className="btn btn-social btn-discord">
+                  Continue with Discord
+                </a>
+              )}
+            </div>
+            <p className="divider">or sign up with email</p>
+          </>
+        )}
         <form onSubmit={handleSubmit}>
           <div className="form-group">
             <label htmlFor="email">Email</label>

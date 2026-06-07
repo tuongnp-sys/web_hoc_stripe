@@ -84,4 +84,32 @@ function validateConfig() {
   }
 }
 
-module.exports = { config, validateConfig, trimEnv };
+async function hydrateOAuthFromDb() {
+  if (config.googleClientId && config.discordClientId) return;
+
+  try {
+    const runtimeConfig = require('./services/runtimeConfig');
+    const stored = await runtimeConfig.getMany(runtimeConfig.OAUTH_KEYS);
+
+    if (!config.googleClientId && stored.GOOGLE_CLIENT_ID) {
+      config.googleClientId = stored.GOOGLE_CLIENT_ID;
+    }
+    if (!config.googleClientSecret && stored.GOOGLE_CLIENT_SECRET) {
+      config.googleClientSecret = stored.GOOGLE_CLIENT_SECRET;
+    }
+    if (!config.discordClientId && stored.DISCORD_CLIENT_ID) {
+      config.discordClientId = stored.DISCORD_CLIENT_ID;
+    }
+    if (!config.discordClientSecret && stored.DISCORD_CLIENT_SECRET) {
+      config.discordClientSecret = stored.DISCORD_CLIENT_SECRET;
+    }
+
+    if (config.googleClientId || config.discordClientId) {
+      console.log('[config] OAuth credentials loaded from runtime_config (env vars take precedence)');
+    }
+  } catch (err) {
+    console.warn('[config] Could not load OAuth from database:', err.message);
+  }
+}
+
+module.exports = { config, validateConfig, trimEnv, hydrateOAuthFromDb };

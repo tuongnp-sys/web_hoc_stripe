@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import { API_URL } from '../api/client';
 import { useAuth } from '../context/AuthContext';
+import useOAuthAvailability from '../hooks/useOAuthAvailability';
 
 function oauthUrl(provider) {
   const base = API_URL || '';
@@ -16,6 +17,7 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const oauth = useOAuthAvailability();
 
   useEffect(() => {
     const oauthError = params.get('error');
@@ -26,6 +28,8 @@ export default function Login() {
       setError(`Social login failed (${oauthProvider || 'provider'}). Try email sign-in instead.`);
     } else if (oauthError === 'invalid_state') {
       setError('Social login session expired. Please try again.');
+    } else if (oauthError === 'oauth_not_configured') {
+      setError('Social login is not available yet. Please sign in with email and password.');
     } else if (oauthError) {
       setError('Social login failed. Please try email sign-in.');
     }
@@ -73,15 +77,23 @@ export default function Login() {
     <div className="container">
       <h1>Sign In</h1>
       <div className="card">
-        <div className="social-auth">
-          <a href={oauthUrl('google')} className="btn btn-social btn-google">
-            Continue with Google
-          </a>
-          <a href={oauthUrl('discord')} className="btn btn-social btn-discord">
-            Continue with Discord
-          </a>
-        </div>
-        <p className="divider">or sign in with email</p>
+        {(oauth.google || oauth.discord) && (
+          <>
+            <div className="social-auth">
+              {oauth.google && (
+                <a href={oauthUrl('google')} className="btn btn-social btn-google">
+                  Continue with Google
+                </a>
+              )}
+              {oauth.discord && (
+                <a href={oauthUrl('discord')} className="btn btn-social btn-discord">
+                  Continue with Discord
+                </a>
+              )}
+            </div>
+            <p className="divider">or sign in with email</p>
+          </>
+        )}
         <form onSubmit={handleSubmit}>
           <div className="form-group">
             <label htmlFor="email">Email</label>

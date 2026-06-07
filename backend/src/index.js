@@ -1,4 +1,4 @@
-const { config, validateConfig } = require('./config');
+const { config, validateConfig, hydrateOAuthFromDb } = require('./config');
 validateConfig();
 
 const express = require('express');
@@ -76,6 +76,7 @@ const { ensureDevAdmin } = require('./services/devSeed');
 
 async function start() {
   await migrate();
+  await hydrateOAuthFromDb();
   await ensureDevAdmin();
   app.listen(config.port, () => {
     console.log(`API:    http://localhost:${config.port}`);

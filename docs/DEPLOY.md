@@ -125,7 +125,33 @@ CLIENT_URL=https://web-hoc-stripe.vercel.app
 API_PUBLIC_URL=https://web-hoc-stripe.onrender.com
 EXTRA_CORS_ORIGINS=https://web-hoc-stripe.vercel.app
 NODE_ENV=production
+GOOGLE_CLIENT_ID=...
+GOOGLE_CLIENT_SECRET=...
+DISCORD_CLIENT_ID=...
+DISCORD_CLIENT_SECRET=...
 ```
+
+**Hoặc đồng bộ tự động** (cần [Render API key](https://dashboard.render.com/u/settings#api-keys)):
+
+```bash
+cd backend
+# Thêm RENDER_API_KEY=rnd_... vào .env (hoặc export biến môi trường)
+npm run sync:render
+```
+
+**Fallback:** nếu chưa set OAuth trên Render, chạy một lần từ máy local (cùng Neon DB):
+
+```bash
+cd backend
+npm run seed:oauth
+```
+
+Sau đó push/redeploy Render để API load credentials từ `runtime_config`.
+
+**OAuth redirect URIs (bắt buộc đăng ký trên Google/Discord):**
+
+- `https://web-hoc-stripe.onrender.com/api/oauth/google/callback`
+- `https://web-hoc-stripe.onrender.com/api/oauth/discord/callback`
 
 Redeploy sau khi đổi env.
 

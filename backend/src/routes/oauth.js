@@ -132,6 +132,23 @@ function redirectWithToken(res, user) {
   res.redirect(`${config.clientUrl}/login${fragment}`);
 }
 
+function oauthSetupHint() {
+  const isProd = config.apiPublicUrl.startsWith('https://');
+  if (isProd) {
+    return 'Add GOOGLE_* / DISCORD_* env vars on Render (or run npm run seed:oauth), and register the production redirect URIs in Google/Discord consoles.';
+  }
+  return 'Register the redirect URIs above in Google Cloud Console and Discord Developer Portal (use port 3000, not 5173).';
+}
+
+function respondOAuthUnavailable(req, res, provider) {
+  const label = provider === 'google' ? 'Google' : 'Discord';
+  const accept = req.headers.accept || '';
+  if (accept.includes('text/html') || req.query.redirect === '1') {
+    return res.redirect(oauthRedirect(provider, 'oauth_not_configured'));
+  }
+  return res.status(503).json({ error: `${label} OAuth not configured` });
+}
+
 router.get('/config', (_req, res) => {
   res.json({
     apiPublicUrl: config.apiPublicUrl,
@@ -140,14 +157,13 @@ router.get('/config', (_req, res) => {
     discordRedirectUri: oauthCallbackUrl('discord'),
     googleConfigured: Boolean(config.googleClientId),
     discordConfigured: Boolean(config.discordClientId),
-    setupHint:
-      'Register the redirect URIs above in Google Cloud Console and Discord Developer Portal (use port 3000, not 5173).',
+    setupHint: oauthSetupHint(),
   });
 });
 
 router.get('/google', (req, res) => {
   if (!config.googleClientId) {
-    return res.status(503).json({ error: 'Google OAuth not configured' });
+    return respondOAuthUnavailable(req, res, 'google');
   }
   const state = crypto.randomBytes(16).toString('hex');
   storeState(state);
@@ -182,7 +198,7 @@ router.get('/google/callback', async (req, res) => {
 
 router.get('/discord', (req, res) => {
   if (!config.discordClientId) {
-    return res.status(503).json({ error: 'Discord OAuth not configured' });
+    return respondOAuthUnavailable(req, res, 'discord');
   }
   const state = crypto.randomBytes(16).toString('hex');
   storeState(state);
