@@ -100,7 +100,7 @@ export default function App() {
         <Route path="/terms" element={<Terms />} />
         <Route path="/privacy" element={<Privacy />} />
         <Route path="/refund-policy" element={<RefundPolicy />} />
-        <Route path="/admin" element={<PrivateRoute><Admin /></PrivateRoute>} />
+        <Route path="/admin/*" element={<PrivateRoute><Admin /></PrivateRoute>} />
       </Routes>
     </Layout>
   );

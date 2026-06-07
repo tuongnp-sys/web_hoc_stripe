@@ -126,7 +126,10 @@ async function findOrCreateOAuthUser(provider, profile) {
   return user;
 }
 
-function redirectWithToken(res, user) {
+function redirectWithToken(res, user, provider = 'oauth') {
+  if (user.account_status === 'suspended') {
+    return res.redirect(oauthRedirect(provider, 'account_suspended'));
+  }
   const token = signToken(user);
   const fragment = `#token=${encodeURIComponent(token)}&user=${encodeURIComponent(JSON.stringify(users.toPublicUser(user)))}`;
   res.redirect(`${config.clientUrl}/login${fragment}`);
@@ -188,7 +191,7 @@ router.get('/google/callback', async (req, res) => {
     }
     const profile = await exchangeGoogleCode(code);
     const user = await findOrCreateOAuthUser('google', profile);
-    redirectWithToken(res, user);
+    redirectWithToken(res, user, 'google');
   } catch (err) {
     const errorCode = err.oauthCode || 'oauth_failed';
     console.error('[oauth/google]', err.message);
@@ -221,7 +224,7 @@ router.get('/discord/callback', async (req, res) => {
     }
     const profile = await exchangeDiscordCode(code);
     const user = await findOrCreateOAuthUser('discord', profile);
-    redirectWithToken(res, user);
+    redirectWithToken(res, user, 'discord');
   } catch (err) {
     const errorCode = err.oauthCode || 'oauth_failed';
     console.error('[oauth/discord]', err.message);

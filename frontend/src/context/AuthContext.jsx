@@ -1,5 +1,6 @@
-import { createContext, useContext, useEffect, useState } from 'react';
+﻿import { createContext, useContext, useEffect, useState } from 'react';
 import client from '../api/client';
+import { ACCOUNT_SUSPENDED_CODE } from '../constants/authMessages';
 
 const AuthContext = createContext(null);
 
@@ -11,12 +12,24 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  const logout = () => {
+    localStorage.removeItem('token');
+    setUser(null);
+  };
+
   const refreshUser = async () => {
     const token = localStorage.getItem('token');
     if (!token) return null;
-    const res = await client.get('/api/auth/me');
-    setUser(res.data.user);
-    return res.data.user;
+    try {
+      const res = await client.get('/api/auth/me');
+      setUser(res.data.user);
+      return res.data.user;
+    } catch (err) {
+      if (err.response?.data?.code === ACCOUNT_SUSPENDED_CODE) {
+        logout();
+      }
+      throw err;
+    }
   };
 
   useEffect(() => {
@@ -41,7 +54,9 @@ export function AuthProvider({ children }) {
       setSession(res.data.token, res.data.user);
       return res.data;
     } catch (err) {
-      throw new Error(apiErrorMessage(err, 'Sign in failed'));
+      const e = new Error(apiErrorMessage(err, 'Sign in failed'));
+      e.code = err.response?.data?.code;
+      throw e;
     }
   };
 
@@ -73,11 +88,6 @@ export function AuthProvider({ children }) {
     } catch (err) {
       throw new Error(apiErrorMessage(err, 'Could not update email'));
     }
-  };
-
-  const logout = () => {
-    localStorage.removeItem('token');
-    setUser(null);
   };
 
   return (

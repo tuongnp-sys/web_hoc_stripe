@@ -1,9 +1,13 @@
-const express = require('express');
+﻿const express = require('express');
 const rateLimit = require('express-rate-limit');
 const users = require('../services/users');
 const emailService = require('../services/email');
 const { config } = require('../config');
 const { signToken, requireAuth, isEmailVerified } = require('../middleware/auth');
+const {
+  ACCOUNT_SUSPENDED_MESSAGE,
+  ACCOUNT_SUSPENDED_CODE,
+} = require('../constants/authMessages');
 const { validatePassword, validateEmail, validateDeliverableEmail } = require('../utils/validation');
 
 const router = express.Router();
@@ -118,6 +122,13 @@ router.post('/login', authLimiter, async (req, res, next) => {
 
     if (!(await users.verifyPassword(user, password))) {
       return res.status(401).json({ error: 'Invalid email or password' });
+    }
+
+    if (user.account_status === 'suspended') {
+      return res.status(403).json({
+        error: ACCOUNT_SUSPENDED_MESSAGE,
+        code: ACCOUNT_SUSPENDED_CODE,
+      });
     }
 
     const token = signToken(user);
@@ -248,7 +259,7 @@ router.post('/forgot-password', authLimiter, async (req, res, next) => {
             ? 'Discord'
             : 'social login';
       return res.status(400).json({
-        error: `This account uses ${label}. Password reset is not available — sign in with ${label}.`,
+        error: `This account uses ${label}. Password reset is not available â€” sign in with ${label}.`,
         code: 'OAUTH_ACCOUNT',
       });
     }

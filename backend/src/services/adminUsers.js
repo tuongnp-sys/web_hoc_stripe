@@ -1,9 +1,17 @@
+const bcrypt = require('bcryptjs');
 const { getPool } = require('../db/pool');
 const entitlements = require('./entitlements');
 const wallet = require('./wallet');
 const audit = require('./adminAudit');
+const users = require('./users');
+const { validatePassword, validateEmail } = require('../utils/validation');
+const adminAccess = require('./adminAccess');
+const { ROOT_ADMIN_EMAIL } = require('../constants/adminAccess');
 
-async function listUsers({ search = '', limit = 50, offset = 0 } = {}) {
+const USER_FIELDS =
+  'id, email, role, email_verified, oauth_provider, is_root, account_status, admin_scope, internal_note, stripe_customer_id, created_at';
+
+async function listUsers({ search = '', limit = 50, offset = 0, actor = null } = {}) {
   const params = [];
   let where = '';
   if (search.trim()) {
@@ -13,12 +21,13 @@ async function listUsers({ search = '', limit = 50, offset = 0 } = {}) {
   params.push(limit, offset);
 
   const { rows } = await getPool().query(
-    `SELECT u.id, u.email, u.role, u.email_verified, u.oauth_provider, u.created_at,
+    `SELECT u.id, u.email, u.role, u.email_verified, u.oauth_provider, u.is_root,
+            u.account_status, u.admin_scope, u.created_at,
             COALESCE(w.gold_balance, 0) AS gold_balance
      FROM users u
      LEFT JOIN wallets w ON w.user_id = u.id
      ${where}
-     ORDER BY u.created_at DESC
+     ORDER BY u.is_root DESC, u.role DESC, u.created_at DESC
      LIMIT $${params.length - 1} OFFSET $${params.length}`,
     params
   );
@@ -30,18 +39,18 @@ async function listUsers({ search = '', limit = 50, offset = 0 } = {}) {
     countParams
   );
 
-  return { users: rows, total: countRows[0].total };
+  return {
+    users: rows,
+    total: countRows[0].total,
+    session: actor ? adminAccess.buildSession(actor) : null,
+  };
 }
 
-async function getUserDetail(userId) {
-  const { rows } = await getPool().query(
-    `SELECT id, email, role, email_verified, oauth_provider, stripe_customer_id, created_at
-     FROM users WHERE id = $1`,
-    [userId]
-  );
+async function getUserDetail(userId, actor = null) {
+  const { rows } = await getPool().query(`SELECT ${USER_FIELDS} FROM users WHERE id = $1`, [userId]);
   if (!rows[0]) return null;
 
-  const [goldBalance, entList, orderRows] = await Promise.all([
+  const [goldBalance, entList, orderRows, actions] = await Promise.all([
     wallet.getBalance(userId),
     entitlements.listForUser(userId),
     getPool().query(
@@ -50,6 +59,7 @@ async function getUserDetail(userId) {
        FROM orders WHERE user_id = $1 ORDER BY created_at DESC LIMIT 100`,
       [userId]
     ),
+    actor ? adminAccess.buildTargetActions(actor.id, rows[0]) : null,
   ]);
 
   return {
@@ -57,10 +67,90 @@ async function getUserDetail(userId) {
     goldBalance,
     entitlements: entList,
     orders: orderRows.rows,
+    actions,
+    session: actor ? adminAccess.buildSession(actor) : null,
   };
 }
 
-async function updateUser(adminId, userId, { emailVerified, role }) {
+async function createUser(actor, { email, password, role = 'user', emailVerified = false, adminScope = 'view' }) {
+  adminAccess.assertMinScope(actor, 'full', 'Only full-scope admins can create users');
+
+  const emailErr = validateEmail(email, { allowDevLocal: true });
+  if (emailErr) {
+    const err = new Error(emailErr);
+    err.status = 400;
+    throw err;
+  }
+
+  const normalized = email.toLowerCase().trim();
+  if (normalized === ROOT_ADMIN_EMAIL) {
+    const err = new Error('This email is reserved for the root admin');
+    err.status = 400;
+    throw err;
+  }
+
+  const pwdErr = validatePassword(password);
+  if (pwdErr) {
+    const err = new Error(pwdErr);
+    err.status = 400;
+    throw err;
+  }
+
+  if (!['user', 'admin'].includes(role)) {
+    const err = new Error('Invalid role');
+    err.status = 400;
+    throw err;
+  }
+
+  const existing = await users.findByEmail(normalized);
+  if (existing) {
+    const err = new Error('Email already registered');
+    err.status = 409;
+    throw err;
+  }
+
+  let scope = 'none';
+  if (role === 'admin') {
+    await adminAccess.assertCanChangeScope({ role: 'admin', is_root: false }, adminScope);
+    scope = adminScope === 'none' ? 'view' : adminScope;
+  }
+
+  const passwordHash = await bcrypt.hash(password, 10);
+  const { rows } = await getPool().query(
+    `INSERT INTO users (email, password_hash, email_verified, role, admin_scope, account_status, terms_accepted_at, age_confirmed_at)
+     VALUES ($1, $2, $3, $4, $5, 'active', NOW(), NOW())
+     RETURNING ${USER_FIELDS}`,
+    [normalized, passwordHash, Boolean(emailVerified), role, scope]
+  );
+  await wallet.ensureWallet(rows[0].id);
+
+  await audit.logAction(actor.id, 'user.create', 'user', rows[0].id, {
+    email: rows[0].email,
+    role,
+    adminScope: scope,
+  });
+  return rows[0];
+}
+
+async function updateUser(actor, userId, body) {
+  const { emailVerified, role, adminScope, accountStatus, internalNote } = body;
+  const actorId = actor.id;
+
+  const targetRes = await getPool().query(`SELECT ${USER_FIELDS} FROM users WHERE id = $1`, [userId]);
+  const target = targetRes.rows[0];
+  if (!target) {
+    const err = new Error('User not found');
+    err.status = 404;
+    throw err;
+  }
+
+  const needsEdit =
+    emailVerified !== undefined || accountStatus !== undefined || internalNote !== undefined;
+  const needsFull = role !== undefined || adminScope !== undefined;
+
+  if (needsEdit) adminAccess.assertMinScope(actor, 'edit');
+  if (needsFull) adminAccess.assertMinScope(actor, 'full');
+
   const fields = [];
   const values = [];
   let i = 1;
@@ -69,19 +159,44 @@ async function updateUser(adminId, userId, { emailVerified, role }) {
     fields.push(`email_verified = $${i++}`);
     values.push(Boolean(emailVerified));
   }
+
+  if (internalNote !== undefined) {
+    fields.push(`internal_note = $${i++}`);
+    values.push(internalNote || null);
+  }
+
+  if (accountStatus !== undefined) {
+    if (!['active', 'suspended'].includes(accountStatus)) {
+      const err = new Error('Invalid account status');
+      err.status = 400;
+      throw err;
+    }
+    if (accountStatus === 'suspended') {
+      await adminAccess.assertCanSuspend(actorId, target, true);
+    }
+    fields.push(`account_status = $${i++}`);
+    values.push(accountStatus);
+  }
+
   if (role !== undefined) {
-    if (!['user', 'admin'].includes(role)) {
-      const err = new Error('Invalid role');
-      err.status = 400;
-      throw err;
-    }
-    if (String(adminId) === String(userId) && role !== 'admin') {
-      const err = new Error('Cannot remove your own admin role');
-      err.status = 400;
-      throw err;
-    }
+    await adminAccess.assertCanChangeRole(actorId, target, role);
     fields.push(`role = $${i++}`);
     values.push(role);
+    if (role === 'user') {
+      fields.push(`admin_scope = $${i++}`);
+      values.push('none');
+    } else if (role === 'admin' && adminScope === undefined && target.role !== 'admin') {
+      fields.push(`admin_scope = $${i++}`);
+      values.push('view');
+    }
+  }
+
+  if (adminScope !== undefined) {
+    const nextRole = role !== undefined ? role : target.role;
+    const nextUser = { ...target, role: nextRole };
+    await adminAccess.assertCanChangeScope(nextUser, adminScope);
+    fields.push(`admin_scope = $${i++}`);
+    values.push(nextRole === 'admin' ? adminScope : 'none');
   }
 
   if (!fields.length) {
@@ -92,48 +207,36 @@ async function updateUser(adminId, userId, { emailVerified, role }) {
 
   values.push(userId);
   const { rows } = await getPool().query(
-    `UPDATE users SET ${fields.join(', ')} WHERE id = $${i} RETURNING id, email, role, email_verified, oauth_provider, created_at`,
+    `UPDATE users SET ${fields.join(', ')} WHERE id = $${i} RETURNING ${USER_FIELDS}`,
     values
   );
-  if (!rows[0]) {
-    const err = new Error('User not found');
-    err.status = 404;
-    throw err;
-  }
 
-  await audit.logAction(adminId, 'user.update', 'user', userId, { emailVerified, role });
+  await audit.logAction(actorId, 'user.update', 'user', userId, body);
   return rows[0];
 }
 
-async function deleteUser(adminId, userId) {
-  if (String(adminId) === String(userId)) {
-    const err = new Error('Cannot delete your own account');
-    err.status = 400;
-    throw err;
-  }
+async function deleteUser(actor, userId) {
+  adminAccess.assertMinScope(actor, 'full', 'Only full-scope admins can permanently delete users');
 
-  const { rows: admins } = await getPool().query(
-    `SELECT COUNT(*)::int AS count FROM users WHERE role = 'admin' AND id != $1`,
-    [userId]
-  );
-  const target = await getPool().query('SELECT email, role FROM users WHERE id = $1', [userId]);
-  if (!target.rows[0]) {
+  const targetRes = await getPool().query(`SELECT ${USER_FIELDS} FROM users WHERE id = $1`, [userId]);
+  const target = targetRes.rows[0];
+  if (!target) {
     const err = new Error('User not found');
     err.status = 404;
     throw err;
   }
-  if (target.rows[0].role === 'admin' && admins.rows[0].count === 0) {
-    const err = new Error('Cannot delete the last admin account');
-    err.status = 400;
-    throw err;
-  }
+
+  await adminAccess.assertCanDelete(actor.id, target);
 
   await getPool().query('DELETE FROM users WHERE id = $1', [userId]);
-  await audit.logAction(adminId, 'user.delete', 'user', userId, { email: target.rows[0].email });
+  await audit.logAction(actor.id, 'user.delete', 'user', userId, { email: target.email });
   return { deleted: true };
 }
 
-async function setEntitlement(adminId, userId, featureKey, { active, adminNote }) {
+async function setEntitlement(actor, userId, featureKey, { active, adminNote }) {
+  adminAccess.assertMinScope(actor, 'edit');
+  const adminId = actor.id;
+
   if (!['premium', 'game_unlock'].includes(featureKey)) {
     const err = new Error('Invalid feature key');
     err.status = 400;
@@ -166,7 +269,10 @@ async function setEntitlement(adminId, userId, featureKey, { active, adminNote }
   return entitlements.listForUser(userId);
 }
 
-async function setOrderAccess(adminId, orderId, { accessEnabled, adminNote }) {
+async function setOrderAccess(actor, orderId, { accessEnabled, adminNote }) {
+  adminAccess.assertMinScope(actor, 'edit');
+  const adminId = actor.id;
+
   const { rows } = await getPool().query(
     `UPDATE orders SET access_enabled = $2, admin_note = COALESCE($3, admin_note)
      WHERE id = $1 AND status = 'paid'
@@ -188,7 +294,10 @@ async function setOrderAccess(adminId, orderId, { accessEnabled, adminNote }) {
   return rows[0];
 }
 
-async function adjustGold(adminId, userId, amount, note) {
+async function adjustGold(actor, userId, amount, note) {
+  adminAccess.assertMinScope(actor, 'edit');
+  const adminId = actor.id;
+
   const delta = Number(amount);
   if (!Number.isInteger(delta) || delta === 0) {
     const err = new Error('Amount must be a non-zero integer');
@@ -242,7 +351,10 @@ async function listProducts() {
   return rows;
 }
 
-async function setProductEnabled(adminId, productKey, enabled) {
+async function setProductEnabled(actor, productKey, enabled) {
+  adminAccess.assertMinScope(actor, 'edit');
+  const adminId = actor.id;
+
   const { rows } = await getPool().query(
     `UPDATE product_catalog SET enabled = $2, updated_at = NOW()
      WHERE product_key = $1 RETURNING *`,
@@ -260,6 +372,7 @@ async function setProductEnabled(adminId, productKey, enabled) {
 module.exports = {
   listUsers,
   getUserDetail,
+  createUser,
   updateUser,
   deleteUser,
   setEntitlement,

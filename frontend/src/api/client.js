@@ -1,4 +1,8 @@
-import axios from 'axios';
+﻿import axios from 'axios';
+import {
+  ACCOUNT_SUSPENDED_CODE,
+  ACCOUNT_SUSPENDED_MESSAGE,
+} from '../constants/authMessages';
 
 // Dev: dùng proxy Vite (baseURL rỗng → cùng origin localhost:5173)
 // Prod: bắt buộc VITE_API_URL trỏ tới Render API
@@ -39,7 +43,20 @@ client.interceptors.response.use(
         ? 'Không kết nối được API. Chạy: cd backend && npm start'
         : 'Không kết nối được API. Kiểm tra VITE_API_URL trên Vercel.';
       error.message = hint;
+      return Promise.reject(error);
     }
+
+    const { status, data } = error.response;
+    const isLoginRequest = String(error.config?.url || '').includes('/api/auth/login');
+
+    if (status === 403 && data?.code === ACCOUNT_SUSPENDED_CODE && !isLoginRequest) {
+      localStorage.removeItem('token');
+      error.message = ACCOUNT_SUSPENDED_MESSAGE;
+      if (!window.location.pathname.startsWith('/login')) {
+        window.location.href = '/login?error=account_suspended';
+      }
+    }
+
     return Promise.reject(error);
   }
 );

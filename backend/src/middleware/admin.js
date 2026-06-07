@@ -1,5 +1,6 @@
 const { config } = require('../config');
 const { requireAuth } = require('./auth');
+const adminAccess = require('../services/adminAccess');
 
 function isAdminUser(user) {
   return user?.role === 'admin';
@@ -21,9 +22,6 @@ function requireAdmin(req, res, next) {
   if (req.user && isAdminUser(req.user)) {
     return next();
   }
-  if (config.nodeEnv === 'development' && req.user && isAdminUser(req.user)) {
-    return next();
-  }
   return res.status(403).json({ error: 'Admin access required' });
 }
 
@@ -34,9 +32,29 @@ function requireAdminAuth(req, res, next) {
   });
 }
 
+function requireScope(minScope) {
+  return (req, res, next) => {
+    const secret = req.headers['x-admin-secret'];
+    if (config.adminSecret && secret === config.adminSecret) {
+      return next();
+    }
+    try {
+      adminAccess.assertMinScope(
+        req.user,
+        minScope,
+        `This action requires ${minScope} scope or higher`
+      );
+      next();
+    } catch (err) {
+      res.status(err.status || 403).json({ error: err.message, code: err.code });
+    }
+  };
+}
+
 module.exports = {
   isAdminUser,
   requireAdmin,
   requireAdminAuth,
   requireAdminSecret,
+  requireScope,
 };

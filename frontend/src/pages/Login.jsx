@@ -1,8 +1,12 @@
-import { useEffect, useState } from 'react';
+﻿import { useEffect, useState } from 'react';
 import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import { API_URL } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import useOAuthAvailability from '../hooks/useOAuthAvailability';
+import {
+  ACCOUNT_SUSPENDED_CODE,
+  ACCOUNT_SUSPENDED_MESSAGE,
+} from '../constants/authMessages';
 
 function oauthUrl(provider) {
   const base = API_URL || '';
@@ -30,6 +34,8 @@ export default function Login() {
       setError('Social login session expired. Please try again.');
     } else if (oauthError === 'oauth_not_configured') {
       setError('Social login is not available yet. Please sign in with email and password.');
+    } else if (oauthError === 'account_suspended') {
+      setError(ACCOUNT_SUSPENDED_MESSAGE);
     } else if (oauthError) {
       setError('Social login failed. Please try email sign-in.');
     }
@@ -62,9 +68,10 @@ export default function Login() {
       await login(email, password);
       navigate('/');
     } catch (err) {
-      const code = err.response?.data?.code;
-      if (code === 'OAUTH_ACCOUNT') {
-        setError(err.response.data.error);
+      if (err.code === ACCOUNT_SUSPENDED_CODE) {
+        setError(ACCOUNT_SUSPENDED_MESSAGE);
+      } else if (err.code === 'OAUTH_ACCOUNT') {
+        setError(err.message);
       } else {
         setError(err.message || 'Sign in failed');
       }
@@ -123,7 +130,7 @@ export default function Login() {
           </p>
           {error && <p className="error">{error}</p>}
           <button type="submit" className="btn" disabled={loading}>
-            {loading ? 'Signing in…' : 'Sign In'}
+            {loading ? 'Signing in...' : 'Sign In'}
           </button>
         </form>
         <p className="hint" style={{ marginTop: '1rem' }}>

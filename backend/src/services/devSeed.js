@@ -13,7 +13,8 @@ async function ensureDevAdmin() {
   const existing = await users.findByEmail(DEV_ADMIN_EMAIL);
   if (existing) {
     await getPool().query(
-      `UPDATE users SET email_verified = TRUE, role = 'admin' WHERE id = $1`,
+      `UPDATE users SET email_verified = TRUE, role = 'admin', is_root = TRUE,
+              admin_scope = 'full', account_status = 'active' WHERE id = $1`,
       [existing.id]
     );
     return existing;
@@ -21,8 +22,8 @@ async function ensureDevAdmin() {
 
   const passwordHash = await bcrypt.hash(DEV_ADMIN_PASSWORD, 10);
   const { rows } = await getPool().query(
-    `INSERT INTO users (email, password_hash, email_verified, role, terms_accepted_at, age_confirmed_at)
-     VALUES ($1, $2, TRUE, 'admin', NOW(), NOW())
+    `INSERT INTO users (email, password_hash, email_verified, role, is_root, admin_scope, account_status, terms_accepted_at, age_confirmed_at)
+     VALUES ($1, $2, TRUE, 'admin', TRUE, 'full', 'active', NOW(), NOW())
      RETURNING id, email`,
     [DEV_ADMIN_EMAIL, passwordHash]
   );

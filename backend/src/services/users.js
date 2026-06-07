@@ -3,7 +3,7 @@ const { getPool } = require('../db/pool');
 const wallet = require('./wallet');
 
 const PUBLIC_FIELDS =
-  'id, email, stripe_customer_id, email_verified, terms_accepted_at, age_confirmed_at, oauth_provider, role, created_at';
+  'id, email, stripe_customer_id, email_verified, terms_accepted_at, age_confirmed_at, oauth_provider, role, is_root, account_status, admin_scope, created_at';
 
 async function findByEmail(email) {
   const { rows } = await getPool().query('SELECT * FROM users WHERE email = $1', [email.toLowerCase()]);
@@ -32,6 +32,9 @@ function toPublicUser(user) {
     ageConfirmedAt: user.age_confirmed_at,
     oauthProvider: user.oauth_provider,
     role: user.role || 'user',
+    isRoot: Boolean(user.is_root),
+    accountStatus: user.account_status || 'active',
+    adminScope: user.admin_scope || 'none',
     createdAt: user.created_at,
   };
 }

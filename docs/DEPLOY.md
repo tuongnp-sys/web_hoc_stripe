@@ -168,6 +168,17 @@ cd backend
 npm run smoke:prod
 ```
 
+## Admin RBAC
+
+Xem [ADMIN_RBAC.md](./ADMIN_RBAC.md) — phạm vi `view` / `edit` / `full`, khóa tạm vs xóa vĩnh viễn, root `admin@localhost`.
+
+Smoke test local (API đang chạy):
+
+```bash
+cd backend
+npm run smoke:admin
+```
+
 ## Checklist
 
 - [ ] `DATABASE_URL` trên Render
