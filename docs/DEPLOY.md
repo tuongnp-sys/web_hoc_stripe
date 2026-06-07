@@ -108,6 +108,40 @@ Checklist chi tiết: [STRIPE_LIVE_CHECKLIST.md](./STRIPE_LIVE_CHECKLIST.md)
 3. Xác nhận: webhook 200, Gold credited, Billing = Succeeded
 4. Test refund trong 48h (Gold chưa tiêu)
 
+## URLs production (tuongnp-sys)
+
+| Service | URL |
+|---------|-----|
+| GitHub | https://github.com/tuongnp-sys/web_hoc_stripe |
+| Vercel (frontend) | https://web-hoc-stripe.vercel.app |
+| Render (API) | https://web-hoc-stripe.onrender.com |
+
+Sau mỗi push `main`, Vercel và Render tự deploy (nếu đã connect repo).
+
+### Render — cập nhật thủ công (Dashboard → Environment)
+
+```
+CLIENT_URL=https://web-hoc-stripe.vercel.app
+API_PUBLIC_URL=https://web-hoc-stripe.onrender.com
+EXTRA_CORS_ORIGINS=https://web-hoc-stripe.vercel.app
+NODE_ENV=production
+```
+
+Redeploy sau khi đổi env.
+
+### Vercel — Environment
+
+```
+VITE_API_URL=https://web-hoc-stripe.onrender.com
+```
+
+### Kiểm tra production
+
+```bash
+cd backend
+npm run smoke:prod
+```
+
 ## Checklist
 
 - [ ] `DATABASE_URL` trên Render

@@ -1,6 +1,9 @@
 node_modules/
 backend/.env
 frontend/.env
+frontend/.env.vercel.*
 dist/
 .DS_Store
 *.log
+
+.vercel

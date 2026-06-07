@@ -8,6 +8,7 @@
     "dev": "node --watch src/index.js",
     "migrate": "node -e \"require('./src/config').validateConfig(); require('./src/db/migrate').migrate().then(() => process.exit(0)).catch(e => { console.error(e); process.exit(1); })\"",
     "smoke": "node scripts/smoke-test.js",
+    "smoke:prod": "node scripts/prod-smoke.js",
     "seed:admin": "node -e \"require('./src/config').validateConfig(); require('./src/services/devSeed').ensureDevAdmin().then(() => process.exit(0)).catch(e => { console.error(e); process.exit(1); })\""
   },
   "keywords": [],

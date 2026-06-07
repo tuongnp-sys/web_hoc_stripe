@@ -39,6 +39,9 @@ app.use(
       if (/^http:\/\/localhost:\d+$/.test(origin) || /^http:\/\/127\.0\.0\.1:\d+$/.test(origin)) {
         allowed.add(origin);
       }
+      if (/^https:\/\/[\w-]+\.vercel\.app$/.test(origin)) {
+        return callback(null, true);
+      }
       callback(null, allowed.has(origin));
     },
     credentials: true,
