@@ -3,9 +3,21 @@ import client from '../api/client';
 
 const AuthContext = createContext(null);
 
+function apiErrorMessage(err, fallback) {
+  return err.response?.data?.error || err.message || fallback;
+}
+
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+
+  const refreshUser = async () => {
+    const token = localStorage.getItem('token');
+    if (!token) return null;
+    const res = await client.get('/api/auth/me');
+    setUser(res.data.user);
+    return res.data.user;
+  };
 
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -13,25 +25,54 @@ export function AuthProvider({ children }) {
       setLoading(false);
       return;
     }
-    client
-      .get('/api/auth/me')
-      .then((res) => setUser(res.data.user))
+    refreshUser()
       .catch(() => localStorage.removeItem('token'))
       .finally(() => setLoading(false));
   }, []);
 
-  const login = async (email, password) => {
-    const res = await client.post('/api/auth/login', { email, password });
-    localStorage.setItem('token', res.data.token);
-    setUser(res.data.user);
-    return res.data;
+  const setSession = (token, userData) => {
+    localStorage.setItem('token', token);
+    setUser(userData);
   };
 
-  const register = async (email, password) => {
-    const res = await client.post('/api/auth/register', { email, password });
-    localStorage.setItem('token', res.data.token);
-    setUser(res.data.user);
-    return res.data;
+  const login = async (email, password) => {
+    try {
+      const res = await client.post('/api/auth/login', { email, password });
+      setSession(res.data.token, res.data.user);
+      return res.data;
+    } catch (err) {
+      throw new Error(apiErrorMessage(err, 'Sign in failed'));
+    }
+  };
+
+  const register = async (email, password, confirmPassword, acceptTerms, confirmAge) => {
+    try {
+      const res = await client.post('/api/auth/register', {
+        email,
+        password,
+        confirmPassword,
+        acceptTerms,
+        confirmAge,
+      });
+      setSession(res.data.token, res.data.user);
+      return res.data;
+    } catch (err) {
+      const e = new Error(apiErrorMessage(err, 'Registration failed'));
+      e.code = err.response?.data?.code;
+      throw e;
+    }
+  };
+
+  const updateEmail = async (email) => {
+    try {
+      const res = await client.post('/api/auth/update-email', { email });
+      if (res.data.token && res.data.user) {
+        setSession(res.data.token, res.data.user);
+      }
+      return res.data;
+    } catch (err) {
+      throw new Error(apiErrorMessage(err, 'Could not update email'));
+    }
   };
 
   const logout = () => {
@@ -40,7 +81,9 @@ export function AuthProvider({ children }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout }}>
+    <AuthContext.Provider
+      value={{ user, loading, login, register, logout, setSession, refreshUser, updateEmail }}
+    >
       {children}
     </AuthContext.Provider>
   );

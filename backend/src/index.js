@@ -15,6 +15,11 @@ const ordersRoutes = require('./routes/orders');
 const portalRoutes = require('./routes/portal');
 const accountRoutes = require('./routes/account');
 const adminRoutes = require('./routes/admin');
+const walletRoutes = require('./routes/wallet');
+const refundsRoutes = require('./routes/refunds');
+const invoicesRoutes = require('./routes/invoices');
+const oauthRoutes = require('./routes/oauth');
+const stripeRoutes = require('./routes/stripe');
 
 const app = express();
 app.set('trust proxy', 1);
@@ -55,22 +60,39 @@ app.use('/api/orders', ordersRoutes);
 app.use('/api/entitlements', entitlementsRoutes);
 app.use('/api/portal', portalRoutes);
 app.use('/api/account', accountRoutes);
+app.use('/api/wallet', walletRoutes);
+app.use('/api/refunds', refundsRoutes);
+app.use('/api/invoices', invoicesRoutes);
+app.use('/api/oauth', oauthRoutes);
+app.use('/api/stripe', stripeRoutes);
 app.use('/api/admin', adminRoutes);
 
 app.use(errorHandler);
 
+const { ensureDevAdmin } = require('./services/devSeed');
+
 async function start() {
   await migrate();
+  await ensureDevAdmin();
   app.listen(config.port, () => {
     console.log(`API:    http://localhost:${config.port}`);
     console.log(`Client: ${config.clientUrl}`);
+    if (config.googleClientId) {
+      console.log(`Google OAuth callback: ${config.apiPublicUrl}/api/oauth/google/callback`);
+    }
+    if (config.discordClientId) {
+      console.log(`Discord OAuth callback: ${config.apiPublicUrl}/api/oauth/discord/callback`);
+    }
     if (!config.stripeWebhookSecret) {
-      console.log(`Webhook (local): stripe listen --forward-to localhost:${config.port}/webhook`);
+      console.log(`Webhook test (local): stripe listen --forward-to localhost:${config.port}/webhook`);
+    }
+    if (config.stripeWebhookSecretLive) {
+      console.log(`Webhook live: POST ${config.apiPublicUrl}/webhook/live`);
     }
   });
 }
 
 start().catch((err) => {
-  console.error('Không khởi động được server:', err.message);
+  console.error('Failed to start server:', err.message);
   process.exit(1);
 });

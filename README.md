@@ -66,3 +66,6 @@ GitHub + **Vercel** (frontend) + **Render** (backend) + **Neon** — xem [docs/D
 - [docs/NEON_SETUP.md](docs/NEON_SETUP.md)
 - [docs/WEBHOOK.md](docs/WEBHOOK.md)
 - [docs/STRIPE_TEST_CARDS.md](docs/STRIPE_TEST_CARDS.md)
+- [docs/EMAIL_SETUP.md](docs/EMAIL_SETUP.md) — verification email & Resend sandbox
+- [docs/OAUTH_SETUP.md](docs/OAUTH_SETUP.md) — Google/Discord redirect URIs
+- [docs/STRIPE_MODES.md](docs/STRIPE_MODES.md) — test vs live mode toggle

@@ -1,16 +1,141 @@
 const express = require('express');
-const { requireAdmin } = require('../middleware/admin');
+const { requireAdminAuth } = require('../middleware/admin');
+const adminUsers = require('../services/adminUsers');
+const audit = require('../services/adminAudit');
 const orders = require('../services/orders');
 const { getPool } = require('../db/pool');
 
 const router = express.Router();
 
-router.use(requireAdmin);
+router.use(requireAdminAuth);
+
+router.get('/users', async (req, res, next) => {
+  try {
+    const limit = Math.min(Number(req.query.limit) || 50, 100);
+    const offset = Number(req.query.offset) || 0;
+    const result = await adminUsers.listUsers({
+      search: req.query.search || '',
+      limit,
+      offset,
+    });
+    res.json(result);
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.get('/users/:id', async (req, res, next) => {
+  try {
+    const detail = await adminUsers.getUserDetail(req.params.id);
+    if (!detail) return res.status(404).json({ error: 'User not found' });
+    res.json(detail);
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.patch('/users/:id', async (req, res, next) => {
+  try {
+    const { emailVerified, role } = req.body;
+    const user = await adminUsers.updateUser(req.user.id, req.params.id, {
+      emailVerified,
+      role,
+    });
+    res.json({ user });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.delete('/users/:id', async (req, res, next) => {
+  try {
+    const result = await adminUsers.deleteUser(req.user.id, req.params.id);
+    res.json(result);
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.patch('/users/:id/entitlements/:featureKey', async (req, res, next) => {
+  try {
+    const { active, adminNote } = req.body;
+    if (active === undefined) {
+      return res.status(400).json({ error: 'active is required' });
+    }
+    const list = await adminUsers.setEntitlement(
+      req.user.id,
+      req.params.id,
+      req.params.featureKey,
+      { active, adminNote }
+    );
+    res.json({ entitlements: list });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.patch('/users/:id/wallet', async (req, res, next) => {
+  try {
+    const { amount, note } = req.body;
+    const result = await adminUsers.adjustGold(req.user.id, req.params.id, amount, note);
+    res.json(result);
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.patch('/orders/:id/access', async (req, res, next) => {
+  try {
+    const { accessEnabled, adminNote } = req.body;
+    if (accessEnabled === undefined) {
+      return res.status(400).json({ error: 'accessEnabled is required' });
+    }
+    const order = await adminUsers.setOrderAccess(req.user.id, req.params.id, {
+      accessEnabled,
+      adminNote,
+    });
+    res.json({ order });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.get('/products', async (_req, res, next) => {
+  try {
+    const products = await adminUsers.listProducts();
+    res.json({ products });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.patch('/products/:key', async (req, res, next) => {
+  try {
+    const { enabled } = req.body;
+    if (enabled === undefined) {
+      return res.status(400).json({ error: 'enabled is required' });
+    }
+    const product = await adminUsers.setProductEnabled(req.user.id, req.params.key, enabled);
+    res.json({ product });
+  } catch (err) {
+    next(err);
+  }
+});
 
 router.get('/orders', async (_req, res, next) => {
   try {
     const list = await orders.listAll();
     res.json({ orders: list });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.get('/audit-log', async (req, res, next) => {
+  try {
+    const limit = Math.min(Number(req.query.limit) || 50, 200);
+    const events = await audit.listRecent(limit);
+    res.json({ events });
   } catch (err) {
     next(err);
   }

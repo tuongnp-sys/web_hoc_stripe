@@ -36,7 +36,7 @@ async function revokeEntitlement(userId, featureKey) {
 
 async function listForUser(userId) {
   const { rows } = await getPool().query(
-    `SELECT feature_key, active, expires_at, created_at
+    `SELECT feature_key, active, expires_at, admin_note, created_at, updated_at
      FROM entitlements WHERE user_id = $1`,
     [userId]
   );

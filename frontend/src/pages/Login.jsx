@@ -1,14 +1,52 @@
-import { useState } from 'react';
-import { Link, Navigate, useNavigate } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom';
+import { API_URL } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 
+function oauthUrl(provider) {
+  const base = API_URL || '';
+  return `${base}/api/oauth/${provider}`;
+}
+
 export default function Login() {
-  const { user, login } = useAuth();
+  const { user, login, setSession } = useAuth();
   const navigate = useNavigate();
+  const [params] = useSearchParams();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const oauthError = params.get('error');
+    const oauthProvider = params.get('oauth');
+    if (oauthError === 'redirect_uri_mismatch') {
+      setError('Social login is not configured for this environment. Please sign in with email and password.');
+    } else if (oauthError === 'oauth_failed') {
+      setError(`Social login failed (${oauthProvider || 'provider'}). Try email sign-in instead.`);
+    } else if (oauthError === 'invalid_state') {
+      setError('Social login session expired. Please try again.');
+    } else if (oauthError) {
+      setError('Social login failed. Please try email sign-in.');
+    }
+
+    const hash = window.location.hash.slice(1);
+    if (hash.includes('token=')) {
+      const hashParams = new URLSearchParams(hash);
+      const token = hashParams.get('token');
+      const userJson = hashParams.get('user');
+      if (token && userJson) {
+        try {
+          const parsedUser = JSON.parse(decodeURIComponent(userJson));
+          setSession(token, parsedUser);
+          window.history.replaceState(null, '', '/login');
+          navigate('/');
+        } catch {
+          setError('Social login failed');
+        }
+      }
+    }
+  }, [params, navigate, setSession]);
 
   if (user) return <Navigate to="/" replace />;
 
@@ -20,7 +58,12 @@ export default function Login() {
       await login(email, password);
       navigate('/');
     } catch (err) {
-      setError(err.response?.data?.error || 'Đăng nhập thất bại');
+      const code = err.response?.data?.code;
+      if (code === 'OAUTH_ACCOUNT') {
+        setError(err.response.data.error);
+      } else {
+        setError(err.message || 'Sign in failed');
+      }
     } finally {
       setLoading(false);
     }
@@ -28,8 +71,17 @@ export default function Login() {
 
   return (
     <div className="container">
-      <h1>Đăng nhập</h1>
+      <h1>Sign In</h1>
       <div className="card">
+        <div className="social-auth">
+          <a href={oauthUrl('google')} className="btn btn-social btn-google">
+            Continue with Google
+          </a>
+          <a href={oauthUrl('discord')} className="btn btn-social btn-discord">
+            Continue with Discord
+          </a>
+        </div>
+        <p className="divider">or sign in with email</p>
         <form onSubmit={handleSubmit}>
           <div className="form-group">
             <label htmlFor="email">Email</label>
@@ -40,10 +92,11 @@ export default function Login() {
               onChange={(e) => setEmail(e.target.value)}
               required
               autoComplete="email"
+              placeholder="you@email.com"
             />
           </div>
           <div className="form-group">
-            <label htmlFor="password">Mật khẩu</label>
+            <label htmlFor="password">Password</label>
             <input
               id="password"
               type="password"
@@ -53,13 +106,16 @@ export default function Login() {
               autoComplete="current-password"
             />
           </div>
+          <p className="hint">
+            <Link to="/forgot-password">Forgot password?</Link>
+          </p>
           {error && <p className="error">{error}</p>}
           <button type="submit" className="btn" disabled={loading}>
-            {loading ? 'Đang đăng nhập…' : 'Đăng nhập'}
+            {loading ? 'Signing in…' : 'Sign In'}
           </button>
         </form>
         <p className="hint" style={{ marginTop: '1rem' }}>
-          Chưa có tài khoản? <Link to="/register">Đăng ký</Link>
+          No account? <Link to="/register">Create one</Link>
         </p>
       </div>
     </div>

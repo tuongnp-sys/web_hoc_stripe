@@ -23,10 +23,24 @@ a:hover {
   text-decoration: underline;
 }
 
+.app-layout {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.app-main {
+  flex: 1;
+}
+
 .container {
   max-width: 32rem;
   margin: 0 auto;
   padding: 1.5rem 1rem;
+}
+
+.container-wide {
+  max-width: 56rem;
 }
 
 .card {
@@ -49,6 +63,7 @@ a:hover {
   color: #fff;
   cursor: pointer;
   text-align: center;
+  text-decoration: none;
 }
 
 .btn:hover:not(:disabled) {
@@ -80,12 +95,28 @@ a:hover {
   font-weight: 500;
 }
 
-.form-group input {
+.form-group input,
+.form-group select,
+.form-group textarea {
   width: 100%;
   padding: 0.6rem 0.75rem;
   border: 1px solid #cbd5e1;
   border-radius: 8px;
   font-size: 1rem;
+  font-family: inherit;
+}
+
+.checkbox-group label {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-start;
+  font-weight: 400;
+  font-size: 0.9rem;
+}
+
+.checkbox-group input {
+  width: auto;
+  margin-top: 0.2rem;
 }
 
 .error {
@@ -122,6 +153,172 @@ a:hover {
   flex: 1;
 }
 
+.nav-user-email {
+  font-size: 0.85rem;
+  color: #475569;
+}
+
+.nav-packages {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  align-items: center;
+  max-width: 14rem;
+}
+
+.nav-package-badge {
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 0.15rem 0.45rem;
+  border-radius: 4px;
+  background: #fef9c3;
+  color: #a16207;
+  border: 1px solid #fde047;
+  white-space: nowrap;
+}
+
+.stripe-mode-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.8rem;
+}
+
+.mode-badge {
+  padding: 0.15rem 0.45rem;
+  border-radius: 4px;
+  font-weight: 700;
+  font-size: 0.7rem;
+  letter-spacing: 0.03em;
+}
+
+.mode-test {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.mode-live {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.toggle-label {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  cursor: pointer;
+  color: #64748b;
+}
+
+.toggle-label input:disabled + span {
+  opacity: 0.5;
+}
+
+.in-app-link-banner {
+  background: #dbeafe;
+  color: #1e40af;
+  margin: 1rem 0;
+}
+
+.in-app-link {
+  display: inline-block;
+  font-weight: 600;
+  color: #1d4ed8;
+}
+
+.admin-tabs {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+}
+
+.admin-tab {
+  padding: 0.4rem 0.75rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #fff;
+  cursor: pointer;
+  text-transform: capitalize;
+}
+
+.admin-tab.active {
+  background: #635bff;
+  color: #fff;
+  border-color: #635bff;
+}
+
+.admin-layout {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 960px) {
+  .admin-layout {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.admin-search {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.admin-search input {
+  flex: 1;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+}
+
+.admin-table {
+  font-size: 0.85rem;
+}
+
+.admin-table .row-selected {
+  background: #f0f9ff;
+}
+
+.admin-detail .admin-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.admin-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.admin-section-title {
+  font-size: 0.95rem;
+  margin: 1rem 0 0.5rem;
+}
+
+.admin-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.admin-chip {
+  padding: 0.75rem;
+  min-width: 10rem;
+}
+
+.admin-pre {
+  font-size: 0.75rem;
+  overflow: auto;
+  max-height: 24rem;
+}
+
 .hint {
   font-size: 0.85rem;
   color: #64748b;
@@ -135,4 +332,412 @@ a:hover {
   font-size: 0.9rem;
   background: #fef3c7;
   color: #92400e;
+}
+
+.footer {
+  margin-top: auto;
+  padding: 1.5rem 1rem;
+  background: #1a1a2e;
+  color: #94a3b8;
+  font-size: 0.85rem;
+}
+
+.footer-inner {
+  max-width: 56rem;
+  margin: 0 auto;
+  text-align: center;
+}
+
+.footer-links {
+  display: flex;
+  gap: 1.5rem;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin: 0.75rem 0;
+}
+
+.footer-links a {
+  color: #cbd5e1;
+}
+
+.footer-copy {
+  margin: 0;
+}
+
+.footer-contact {
+  margin: 0.5rem 0 0;
+}
+
+.footer-contact a {
+  color: #94a3b8;
+}
+
+.legal-content {
+  max-width: 48rem;
+}
+
+.legal-section {
+  margin-bottom: 1.25rem;
+}
+
+.legal-section h2 {
+  font-size: 1rem;
+  margin: 0 0 0.35rem;
+}
+
+.legal-section p {
+  margin: 0;
+  color: #475569;
+}
+
+.balance-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.balance-label {
+  margin: 0;
+  font-size: 0.85rem;
+  color: #64748b;
+}
+
+.balance-value {
+  margin: 0;
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: #b45309;
+}
+
+.deposit-layout {
+  display: grid;
+  grid-template-columns: 1fr 18rem;
+  gap: 1.5rem;
+  align-items: start;
+}
+
+@media (max-width: 768px) {
+  .deposit-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.tier-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr));
+  gap: 1rem;
+  margin: 1rem 0;
+}
+
+.tier-card {
+  position: relative;
+  text-align: center;
+  border: 2px solid transparent;
+  cursor: pointer;
+  background: #fff;
+}
+
+.tier-selected {
+  border-color: #635bff;
+}
+
+.tier-badge {
+  position: absolute;
+  top: -0.5rem;
+  right: -0.5rem;
+  background: #635bff;
+  color: #fff;
+  font-size: 0.7rem;
+  padding: 0.2rem 0.5rem;
+  border-radius: 999px;
+}
+
+.tier-card h3 {
+  margin: 0 0 0.25rem;
+  font-size: 1rem;
+}
+
+.tier-gold {
+  font-weight: 700;
+  color: #b45309;
+  margin: 0.25rem 0;
+}
+
+.tier-price {
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin: 0.25rem 0;
+}
+
+.tier-savings {
+  color: #047857;
+  font-size: 0.85rem;
+  margin: 0;
+}
+
+.tier-btn {
+  margin-top: 0.5rem;
+  font-size: 0.85rem;
+  padding: 0.5rem;
+}
+
+.premium-card {
+  margin-top: 1rem;
+}
+
+.payment-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+.payment-badge {
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  border-radius: 4px;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #475569;
+}
+
+.order-summary h3 {
+  margin: 0 0 0.75rem;
+  font-size: 1rem;
+}
+
+.summary-lines {
+  margin: 0;
+}
+
+.summary-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.35rem 0;
+  font-size: 0.9rem;
+}
+
+.summary-row dt,
+.summary-row dd {
+  margin: 0;
+}
+
+.summary-gold dd {
+  color: #b45309;
+  font-weight: 600;
+}
+
+.hint-row {
+  color: #64748b;
+  font-size: 0.85rem;
+}
+
+.summary-total {
+  border-top: 1px solid #e2e8f0;
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+  font-weight: 700;
+}
+
+.summary-note {
+  margin-top: 0.75rem;
+  margin-bottom: 0;
+}
+
+.billing-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.billing-table th,
+.billing-table td {
+  padding: 0.6rem 0.5rem;
+  text-align: left;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.billing-table th {
+  font-weight: 600;
+  color: #64748b;
+}
+
+.table-wrap {
+  overflow-x: auto;
+}
+
+.status-badge {
+  display: inline-block;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.status-paid {
+  background: #d1fae5;
+  color: #047857;
+}
+
+.status-pending {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.status-expired,
+.status-refunded {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.link-btn {
+  background: none;
+  border: none;
+  color: #635bff;
+  cursor: pointer;
+  font-size: 0.85rem;
+  padding: 0;
+  margin-right: 0.75rem;
+}
+
+.link-btn:hover {
+  text-decoration: underline;
+}
+
+.pagination {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.pagination .btn {
+  width: auto;
+  margin: 0;
+}
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  z-index: 100;
+}
+
+.modal {
+  max-width: 28rem;
+  width: 100%;
+}
+
+.modal-actions {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.modal-actions .btn {
+  flex: 1;
+}
+
+.refund-notice {
+  background: #f8fafc;
+  border-left: 3px solid #635bff;
+  padding: 0.75rem;
+  font-size: 0.85rem;
+  margin: 0.75rem 0;
+}
+
+.password-strength {
+  margin-top: 0.5rem;
+}
+
+.strength-bar {
+  height: 4px;
+  background: #e2e8f0;
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.strength-fill {
+  height: 100%;
+  transition: width 0.2s;
+}
+
+.strength-weak {
+  background: #ef4444;
+}
+
+.strength-medium {
+  background: #f59e0b;
+}
+
+.strength-strong {
+  background: #10b981;
+}
+
+.strength-rules {
+  list-style: none;
+  padding: 0;
+  margin: 0.5rem 0 0;
+  font-size: 0.8rem;
+}
+
+.rule-ok {
+  color: #047857;
+}
+
+.rule-pending {
+  color: #94a3b8;
+}
+
+.social-auth {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.btn-social {
+  margin-top: 0;
+}
+
+.btn-google {
+  background: #fff;
+  color: #334155;
+  border: 1px solid #cbd5e1;
+}
+
+.btn-google:hover:not(:disabled) {
+  background: #f8fafc;
+}
+
+.btn-discord {
+  background: #5865f2;
+}
+
+.btn-discord:hover:not(:disabled) {
+  background: #4752c4;
+}
+
+.divider {
+  text-align: center;
+  color: #94a3b8;
+  font-size: 0.85rem;
+  margin: 1rem 0;
+}
+
+.amount-refund {
+  color: #047857;
+}
+
+.refund-status {
+  display: block;
+  margin-top: 0.25rem;
+}
+
+.actions-cell {
+  white-space: nowrap;
 }

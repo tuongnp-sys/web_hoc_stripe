@@ -2,43 +2,136 @@ const stripeService = require('./stripe');
 const orders = require('./orders');
 const entitlements = require('./entitlements');
 const subscriptions = require('./subscriptions');
+const wallet = require('./wallet');
+const refunds = require('./refunds');
 
 const PRODUCT_ENTITLEMENT = {
-  game_unlock: 'game_unlock',
   premium_monthly: 'premium',
 };
 
 function entitlementForProduct(productKey) {
-  return PRODUCT_ENTITLEMENT[productKey] || productKey;
+  return PRODUCT_ENTITLEMENT[productKey] || null;
 }
 
-async function handleCheckoutCompleted(session) {
-  const userId = session.metadata?.userId;
-  const productKey = session.metadata?.productKey || 'game_unlock';
-  if (!userId) return;
+function stripeId(value) {
+  if (!value) return null;
+  if (typeof value === 'string') return value;
+  return value.id || null;
+}
 
-  const order = await orders.markOrderPaid(session.id, session.payment_intent);
-  const featureKey = entitlementForProduct(productKey);
+function isCheckoutSessionComplete(session) {
+  if (session.status === 'complete') return true;
+  if (session.payment_status === 'paid') return true;
+  if (session.mode === 'subscription' && session.status === 'complete') return true;
+  return false;
+}
+
+function subscriptionPeriodEnd(sub) {
+  const ts = sub.current_period_end ?? sub.items?.data?.[0]?.current_period_end;
+  return ts ? new Date(ts * 1000) : null;
+}
+
+async function fulfillCheckoutSession(session) {
+  const userId = session.metadata?.userId;
+  const productKey = session.metadata?.productKey;
+  if (!userId || !productKey) {
+    return { fulfilled: false, reason: 'missing_metadata' };
+  }
+
+  if (!isCheckoutSessionComplete(session)) {
+    return {
+      fulfilled: false,
+      reason: 'not_complete',
+      status: session.payment_status || session.status,
+    };
+  }
+
+  const paymentIntentId = stripeId(session.payment_intent);
+  const invoiceId = stripeId(session.invoice);
+
+  const order = await orders.markOrderPaid(session.id, paymentIntentId, invoiceId);
+  const product = stripeService.PRODUCTS[productKey];
 
   if (session.mode === 'subscription' && session.subscription) {
-    const sub = await stripeService.stripe.subscriptions.retrieve(session.subscription);
+    const subId = stripeId(session.subscription);
+    const stripeMode = session.metadata?.stripeMode || 'test';
+    const sub = await stripeService.getStripeClient(stripeMode).subscriptions.retrieve(subId);
+    const periodEnd = subscriptionPeriodEnd(sub);
+
     await subscriptions.upsertFromStripe({
       userId,
       stripeSubscriptionId: sub.id,
       stripePriceId: sub.items?.data?.[0]?.price?.id || null,
       status: sub.status,
-      currentPeriodEnd: new Date(sub.current_period_end * 1000),
+      currentPeriodEnd: periodEnd,
     });
-    await entitlements.grantEntitlement(
-      userId,
-      featureKey,
-      order?.id,
-      new Date(sub.current_period_end * 1000)
-    );
-    return;
+
+    const featureKey = entitlementForProduct(productKey);
+    if (featureKey) {
+      await entitlements.grantEntitlement(userId, featureKey, order?.id, periodEnd);
+    }
+
+    return { fulfilled: true, productKey, order, mode: 'subscription' };
   }
 
-  await entitlements.grantEntitlement(userId, featureKey, order?.id);
+  if (product?.gold > 0 && order) {
+    const { getPool } = require('../db/pool');
+    const { rows } = await getPool().query(
+      `SELECT 1 FROM wallet_transactions
+       WHERE user_id = $1 AND order_id = $2 AND type = 'credit' LIMIT 1`,
+      [userId, order.id]
+    );
+    if (rows.length === 0) {
+      await wallet.creditGold(
+        userId,
+        product.gold,
+        order.id,
+        `Purchased ${product.name} (+${product.gold} Gold)`
+      );
+    }
+    return {
+      fulfilled: true,
+      productKey,
+      order,
+      mode: 'payment',
+      goldCredited: product.gold,
+      goldBalance: await wallet.getBalance(userId),
+    };
+  }
+
+  return { fulfilled: true, productKey, order, mode: session.mode };
+}
+
+async function syncPendingOrdersForUser(userId) {
+  const pending = await orders.listPendingForUser(userId);
+  let synced = 0;
+
+  for (const order of pending) {
+    if (!order.stripe_checkout_session_id) continue;
+    try {
+      const session = await stripeService.retrieveSession(
+        order.stripe_checkout_session_id,
+        order.stripe_mode || 'test'
+      );
+      if (String(session.metadata?.userId) !== String(userId)) continue;
+
+      if (session.status === 'expired') {
+        await orders.markOrderExpired(session.id);
+        continue;
+      }
+
+      const result = await fulfillCheckoutSession(session);
+      if (result.fulfilled) synced += 1;
+    } catch (err) {
+      console.error('[sync-pending]', order.id, err.message);
+    }
+  }
+
+  return { synced, checked: pending.length };
+}
+
+async function handleCheckoutCompleted(session) {
+  await fulfillCheckoutSession(session);
 }
 
 async function handleCheckoutExpired(session) {
@@ -57,36 +150,45 @@ async function handleSubscriptionUpdated(sub) {
 }
 
 async function syncSubscription(userId, sub) {
+  const periodEnd = subscriptionPeriodEnd(sub);
   await subscriptions.upsertFromStripe({
     userId,
     stripeSubscriptionId: sub.id,
     stripePriceId: sub.items?.data?.[0]?.price?.id || null,
     status: sub.status,
-    currentPeriodEnd: new Date(sub.current_period_end * 1000),
+    currentPeriodEnd: periodEnd,
   });
 
   const active = ['active', 'trialing'].includes(sub.status);
   if (active) {
-    await entitlements.grantEntitlement(
-      userId,
-      'premium',
-      null,
-      new Date(sub.current_period_end * 1000)
-    );
+    await entitlements.grantEntitlement(userId, 'premium', null, periodEnd);
   } else {
     await entitlements.revokeEntitlement(userId, 'premium');
   }
 }
 
 async function handleChargeRefunded(charge) {
-  const paymentIntentId = charge.payment_intent;
+  const paymentIntentId = stripeId(charge.payment_intent);
   if (!paymentIntentId) return;
 
   const order = await orders.markOrderRefunded(paymentIntentId);
   if (!order) return;
 
+  if (order.gold_amount > 0) {
+    await wallet.debitGoldForRefund(
+      order.user_id,
+      order.gold_unspent || order.gold_amount,
+      order.id,
+      'Charge refunded'
+    );
+  }
+
   const featureKey = entitlementForProduct(order.product_key);
-  await entitlements.revokeEntitlement(order.user_id, featureKey);
+  if (featureKey) {
+    await entitlements.revokeEntitlement(order.user_id, featureKey);
+  }
+
+  await refunds.markCompletedByStripeRefund(charge.refunds?.data?.[0]?.id, paymentIntentId);
 }
 
 async function processEvent(event) {
@@ -109,4 +211,10 @@ async function processEvent(event) {
   }
 }
 
-module.exports = { processEvent, entitlementForProduct };
+module.exports = {
+  processEvent,
+  entitlementForProduct,
+  fulfillCheckoutSession,
+  syncPendingOrdersForUser,
+  isCheckoutSessionComplete,
+};

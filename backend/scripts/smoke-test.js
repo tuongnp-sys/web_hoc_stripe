@@ -1,5 +1,5 @@
 /**
- * Smoke test API (cần server đang chạy + DATABASE_URL hợp lệ).
+ * Smoke test API (server running + valid DATABASE_URL).
  * Usage: node scripts/smoke-test.js
  */
 const API = process.env.API_URL || 'http://localhost:3000';
@@ -14,8 +14,8 @@ async function request(path, options = {}) {
 }
 
 async function main() {
-  const email = `test_${Date.now()}@lab.local`;
-  const password = 'test123456';
+  const email = `smoke_${Date.now()}@gmail.com`;
+  const password = 'Test1234!';
 
   console.log('1. Health...');
   const health = await request('/health');
@@ -25,7 +25,13 @@ async function main() {
   console.log('2. Register...');
   const reg = await request('/api/auth/register', {
     method: 'POST',
-    body: JSON.stringify({ email, password }),
+    body: JSON.stringify({
+      email,
+      password,
+      confirmPassword: password,
+      acceptTerms: true,
+      confirmAge: true,
+    }),
   });
   if (reg.status !== 201) throw new Error(JSON.stringify(reg.body));
   const token = reg.body.token;
@@ -36,22 +42,26 @@ async function main() {
   if (!products.body.products?.length) throw new Error('No products');
   console.log('   OK', products.body.products.length, 'products');
 
-  console.log('4. Entitlements (locked)...');
-  const ent = await request('/api/entitlements', {
+  console.log('4. Wallet...');
+  const wallet = await request('/api/wallet', {
     headers: { Authorization: `Bearer ${token}` },
   });
-  if (ent.body.gameUnlock !== false) throw new Error('Expected locked');
+  if (wallet.body.goldBalance !== 0) throw new Error('Expected 0 gold');
   console.log('   OK');
 
-  console.log('5. Create checkout session...');
-  const checkout = await request('/api/checkout/one-time', {
+  console.log('5. Create checkout session (gold_starter)...');
+  const checkout = await request('/api/checkout/deposit', {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ productKey: 'gold_starter' }),
   });
-  if (!checkout.body.url?.includes('checkout.stripe.com')) {
+  if (checkout.status === 403 && checkout.body.code === 'EMAIL_NOT_VERIFIED') {
+    console.log('   SKIP (email not verified — expected for new accounts)');
+  } else if (!checkout.body.url?.includes('checkout.stripe.com')) {
     throw new Error(JSON.stringify(checkout.body));
+  } else {
+    console.log('   OK', checkout.body.sessionId);
   }
-  console.log('   OK', checkout.body.sessionId);
 
   console.log('\nSmoke test passed.');
 }

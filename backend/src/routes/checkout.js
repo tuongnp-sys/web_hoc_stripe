@@ -1,11 +1,14 @@
 const express = require('express');
 const { config } = require('../config');
-const { requireAuth } = require('../middleware/auth');
+const { requireAuth, requireVerifiedEmail } = require('../middleware/auth');
+const { requireStripeMode } = require('../middleware/stripeMode');
 const stripeService = require('../services/stripe');
 const orders = require('../services/orders');
-const entitlements = require('../services/entitlements');
-const subscriptions = require('../services/subscriptions');
-const { entitlementForProduct } = require('../services/webhookHandler');
+const { isProductEnabled } = require('../services/productCatalog');
+const {
+  fulfillCheckoutSession,
+  syncPendingOrdersForUser,
+} = require('../services/webhookHandler');
 
 const router = express.Router();
 
@@ -13,12 +16,19 @@ async function startCheckout(req, res, next, productKey) {
   try {
     const product = stripeService.PRODUCTS[productKey];
     if (!product) {
-      return res.status(400).json({ error: 'Sản phẩm không tồn tại' });
+      return res.status(400).json({ error: 'Product not found' });
+    }
+    if (!(await isProductEnabled(productKey))) {
+      return res.status(400).json({ error: 'This product is currently unavailable', code: 'PRODUCT_DISABLED' });
     }
 
-    const featureKey = entitlementForProduct(productKey);
-    if (await entitlements.hasEntitlement(req.user.id, featureKey)) {
-      return res.status(400).json({ error: 'Bạn đã sở hữu gói này rồi' });
+    if (product.mode === 'subscription') {
+      const entitlements = require('../services/entitlements');
+      const { entitlementForProduct } = require('../services/webhookHandler');
+      const featureKey = entitlementForProduct(productKey);
+      if (featureKey && (await entitlements.hasEntitlement(req.user.id, featureKey))) {
+        return res.status(400).json({ error: 'You already own this subscription' });
+      }
     }
 
     const successUrl = `${config.clientUrl}/success?session_id={CHECKOUT_SESSION_ID}`;
@@ -29,6 +39,7 @@ async function startCheckout(req, res, next, productKey) {
       productKey,
       successUrl,
       cancelUrl,
+      stripeMode: req.stripeMode,
     });
 
     await orders.createPendingOrder({
@@ -38,6 +49,9 @@ async function startCheckout(req, res, next, productKey) {
       productKey: product.key,
       stripeSessionId: session.id,
       mode: product.mode,
+      goldAmount: product.gold || 0,
+      description: product.name,
+      stripeMode: req.stripeMode,
     });
 
     res.json({ url: session.url, sessionId: session.id });
@@ -46,51 +60,56 @@ async function startCheckout(req, res, next, productKey) {
   }
 }
 
-router.post('/one-time', requireAuth, (req, res, next) => {
-  startCheckout(req, res, next, 'game_unlock');
+router.use(requireStripeMode);
+
+router.post('/deposit', requireAuth, requireVerifiedEmail, (req, res, next) => {
+  const { productKey } = req.body;
+  if (!productKey || !stripeService.PRODUCTS[productKey]) {
+    return res.status(400).json({ error: 'Invalid product' });
+  }
+  if (stripeService.PRODUCTS[productKey].mode === 'subscription') {
+    return res.status(400).json({ error: 'Use /subscription for subscriptions' });
+  }
+  startCheckout(req, res, next, productKey);
 });
 
-router.post('/subscription', requireAuth, (req, res, next) => {
+router.post('/subscription', requireAuth, requireVerifiedEmail, (req, res, next) => {
   startCheckout(req, res, next, 'premium_monthly');
+});
+
+router.post('/sync-pending', requireAuth, async (req, res, next) => {
+  try {
+    const result = await syncPendingOrdersForUser(req.user.id);
+    res.json(result);
+  } catch (err) {
+    next(err);
+  }
 });
 
 router.get('/verify-session/:sessionId', requireAuth, async (req, res, next) => {
   try {
-    const session = await stripeService.retrieveSession(req.params.sessionId);
+    const session = await stripeService.retrieveSession(req.params.sessionId, req.stripeMode);
 
-    if (session.metadata?.userId !== req.user.id) {
-      return res.status(403).json({ error: 'Phiên thanh toán không thuộc tài khoản này' });
+    if (String(session.metadata?.userId) !== String(req.user.id)) {
+      return res.status(403).json({ error: 'Session does not belong to this account' });
     }
 
-    const productKey = session.metadata?.productKey || 'game_unlock';
-    const featureKey = entitlementForProduct(productKey);
+    const result = await fulfillCheckoutSession(session);
 
-    if (session.payment_status === 'paid' || session.status === 'complete') {
-      const order = await orders.markOrderPaid(session.id, session.payment_intent);
-
-      if (session.mode === 'subscription' && session.subscription) {
-        const sub = await stripeService.stripe.subscriptions.retrieve(session.subscription);
-        await subscriptions.upsertFromStripe({
-          userId: req.user.id,
-          stripeSubscriptionId: sub.id,
-          stripePriceId: sub.items?.data?.[0]?.price?.id || null,
-          status: sub.status,
-          currentPeriodEnd: new Date(sub.current_period_end * 1000),
-        });
-        await entitlements.grantEntitlement(
-          req.user.id,
-          featureKey,
-          order?.id,
-          new Date(sub.current_period_end * 1000)
-        );
-      } else {
-        await entitlements.grantEntitlement(req.user.id, featureKey, order?.id);
-      }
-
-      return res.json({ paid: true, userId: req.user.id, productKey });
+    if (result.fulfilled) {
+      return res.json({
+        paid: true,
+        productKey: result.productKey,
+        goldCredited: result.goldCredited,
+        goldBalance: result.goldBalance,
+      });
     }
 
-    res.json({ paid: false, status: session.payment_status || session.status });
+    res.json({
+      paid: false,
+      status: result.status || session.payment_status || session.status,
+      reason: result.reason,
+    });
   } catch (err) {
     next(err);
   }

@@ -7,24 +7,29 @@ async function createPendingOrder({
   productKey,
   stripeSessionId,
   mode = 'payment',
+  goldAmount = 0,
+  description = null,
+  stripeMode = 'test',
 }) {
   const { rows } = await getPool().query(
-    `INSERT INTO orders (user_id, stripe_checkout_session_id, product_key, amount, currency, status, mode)
-     VALUES ($1, $2, $3, $4, $5, 'pending', $6)
+    `INSERT INTO orders (user_id, stripe_checkout_session_id, product_key, amount, currency, status, mode, gold_amount, description, stripe_mode)
+     VALUES ($1, $2, $3, $4, $5, 'pending', $6, $7, $8, $9)
      RETURNING *`,
-    [userId, stripeSessionId, productKey, amount, currency, mode]
+    [userId, stripeSessionId, productKey, amount, currency, mode, goldAmount, description, stripeMode]
   );
   return rows[0];
 }
 
-async function markOrderPaid(sessionId, paymentIntentId = null) {
+async function markOrderPaid(sessionId, paymentIntentId = null, invoiceId = null) {
   const { rows } = await getPool().query(
     `UPDATE orders
      SET status = 'paid', paid_at = NOW(),
-         stripe_payment_intent_id = COALESCE($2, stripe_payment_intent_id)
+         stripe_payment_intent_id = COALESCE($2, stripe_payment_intent_id),
+         stripe_invoice_id = COALESCE($3, stripe_invoice_id),
+         gold_unspent = CASE WHEN gold_amount > 0 THEN gold_amount ELSE gold_unspent END
      WHERE stripe_checkout_session_id = $1
      RETURNING *`,
-    [sessionId, paymentIntentId]
+    [sessionId, paymentIntentId, invoiceId]
   );
   return rows[0] || null;
 }
@@ -41,10 +46,20 @@ async function markOrderExpired(sessionId) {
 
 async function markOrderRefunded(paymentIntentId) {
   const { rows } = await getPool().query(
-    `UPDATE orders SET status = 'refunded'
-     WHERE stripe_payment_intent_id = $1
+    `UPDATE orders SET status = 'refunded', gold_unspent = 0
+     WHERE stripe_payment_intent_id = $1 AND status != 'refunded'
      RETURNING *`,
     [paymentIntentId]
+  );
+  return rows[0] || null;
+}
+
+async function markOrderRefundedById(orderId) {
+  const { rows } = await getPool().query(
+    `UPDATE orders SET status = 'refunded', gold_unspent = 0
+     WHERE id = $1 AND status = 'paid'
+     RETURNING *`,
+    [orderId]
   );
   return rows[0] || null;
 }
@@ -65,13 +80,33 @@ async function findById(orderId, userId) {
   return rows[0] || null;
 }
 
-async function listForUser(userId) {
+async function listForUser(userId, { limit = 50, offset = 0 } = {}) {
   const { rows } = await getPool().query(
-    `SELECT id, product_key, amount, currency, status, mode, created_at, paid_at
-     FROM orders WHERE user_id = $1 ORDER BY created_at DESC`,
+    `SELECT id, product_key, amount, currency, status, mode, gold_amount, gold_unspent,
+            description, stripe_invoice_id, stripe_checkout_session_id, access_enabled,
+            created_at, paid_at
+     FROM orders WHERE user_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3`,
+    [userId, limit, offset]
+  );
+  return rows;
+}
+
+async function listPendingForUser(userId) {
+  const { rows } = await getPool().query(
+    `SELECT id, stripe_checkout_session_id, product_key, status, created_at, stripe_mode
+     FROM orders WHERE user_id = $1 AND status = 'pending'
+     ORDER BY created_at DESC`,
     [userId]
   );
   return rows;
+}
+
+async function countForUser(userId) {
+  const { rows } = await getPool().query(
+    'SELECT COUNT(*)::int AS count FROM orders WHERE user_id = $1',
+    [userId]
+  );
+  return rows[0].count;
 }
 
 async function listAll(limit = 50) {
@@ -90,8 +125,11 @@ module.exports = {
   markOrderPaid,
   markOrderExpired,
   markOrderRefunded,
+  markOrderRefundedById,
   findBySessionId,
   findById,
   listForUser,
+  listPendingForUser,
+  countForUser,
   listAll,
 };
