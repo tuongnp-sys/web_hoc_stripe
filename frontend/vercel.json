@@ -1,5 +1,13 @@
 {
   "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "https://web-hoc-stripe.onrender.com/api/:path*"
+    },
+    {
+      "source": "/health",
+      "destination": "https://web-hoc-stripe.onrender.com/health"
+    },
     { "source": "/game/(.*)", "destination": "/game/$1" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]

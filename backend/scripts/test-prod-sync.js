@@ -89,6 +89,28 @@ async function main() {
     console.log('6. Refund window acceptable:', hours, 'h (skip reset)');
   }
 
+  const gameProfile = await req('/api/game/profile', {
+    headers: { Authorization: `Bearer ${adminToken}` },
+  });
+  if (gameProfile.status !== 200) throw new Error('Game profile failed');
+  console.log('7. Game profile OK — energy:', gameProfile.body.energy);
+
+  const gameStart = await req('/api/game/start', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${adminToken}` },
+    body: JSON.stringify({}),
+  });
+  if (gameStart.status !== 200) throw new Error('Game start failed');
+  console.log('8. Game start OK — allowed:', gameStart.body.allowed);
+
+  const proxyHealth = await fetch(`${CLIENT}/health`);
+  if (proxyHealth.status !== 200) {
+    console.warn('WARN: Vercel /health proxy not ready (deploy vercel.json)');
+  } else {
+    const proxyBody = await proxyHealth.json().catch(() => ({}));
+    console.log('9. Vercel /health proxy OK — clientUrl:', proxyBody.clientUrl);
+  }
+
   console.log('\n=== ALL PROD SYNC TESTS PASSED ===');
 }
 

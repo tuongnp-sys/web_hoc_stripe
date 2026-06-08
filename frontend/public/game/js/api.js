@@ -2,12 +2,21 @@ const TOKEN_KEY = 'token';
 const STRIPE_MODE_KEY = 'stripe_mode';
 
 export function getApiBase() {
-  if (
-    window.location.hostname === 'localhost' ||
-    window.location.hostname === '127.0.0.1'
-  ) {
+  const host = window.location.hostname;
+  if (host === 'localhost' || host === '127.0.0.1') {
     return '';
   }
+
+  if (window.JOYMED_API_URL) {
+    return String(window.JOYMED_API_URL).replace(/\/$/, '');
+  }
+
+  const fromQuery = new URLSearchParams(window.location.search).get('apiBase');
+  if (fromQuery) {
+    return fromQuery.replace(/\/$/, '');
+  }
+
+  // Same-origin proxy (vercel.json rewrites /api → Render)
   return window.location.origin;
 }
 

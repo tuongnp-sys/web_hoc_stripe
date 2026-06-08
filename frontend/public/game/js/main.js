@@ -1319,6 +1319,19 @@ async function refreshEnergyUi() {
   startEnergyCountdown();
 }
 
+async function refreshProfileFromServer() {
+  if (!getToken()) return;
+  try {
+    const profile = await apiGet('/api/game/profile');
+    applyUserFromProfile(profile);
+    await refreshEnergyUi();
+    syncStartButtonState();
+    console.log('[Joymed] Profile refreshed — energy:', currentUser?.energy);
+  } catch (err) {
+    console.warn('[Joymed] Profile refresh failed:', err.message);
+  }
+}
+
 async function fetchLeaderboard() {
   try {
     const data = await apiGet('/api/game/leaderboard?limit=10');
@@ -1981,6 +1994,7 @@ async function initSession() {
 
     const params = new URLSearchParams(window.location.search);
     if (params.get('purchase') === 'success') {
+      await refreshProfileFromServer();
       window.history.replaceState(null, '', window.location.pathname);
     }
     console.log('[Joymed] Session ready:', currentUser.username);
@@ -2217,6 +2231,12 @@ canvas.addEventListener('click', (e) => {
   if (isMobileViewport() && shouldUseTouchControls()) return;
   e.preventDefault();
   if (isPlaying() && !isPaused) tryTriggerShockwave();
+});
+
+window.addEventListener('message', (event) => {
+  if (event.data?.type === 'joymed:refresh-profile') {
+    refreshProfileFromServer();
+  }
 });
 
 // --- Boot --------------------------------------------------------------------
