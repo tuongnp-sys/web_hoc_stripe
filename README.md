@@ -1,6 +1,9 @@
-# Stripe Payment Lab
+# Joymed
 
-Dự án thực hành thanh toán quốc tế cho sinh viên: **React (Vite)** + **Express** + **PostgreSQL (Neon)** + **Stripe Checkout**.
+Game thiền định **7 Layers of Ascent** + thanh toán **React (Vite)** + **Express** + **PostgreSQL (Neon)** + **Stripe Checkout**.
+
+- Production: https://joymed.vercel.app
+- API: https://web-hoc-stripe.onrender.com
 
 ## Tính năng
 

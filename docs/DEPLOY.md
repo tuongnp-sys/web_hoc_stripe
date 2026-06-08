@@ -113,7 +113,7 @@ Checklist chi tiết: [STRIPE_LIVE_CHECKLIST.md](./STRIPE_LIVE_CHECKLIST.md)
 | Service | URL |
 |---------|-----|
 | GitHub | https://github.com/tuongnp-sys/web_hoc_stripe |
-| Vercel (frontend) | https://web-hoc-stripe.vercel.app |
+| Vercel (frontend) | https://joymed.vercel.app |
 | Render (API) | https://web-hoc-stripe.onrender.com |
 
 Sau mỗi push `main`, Vercel và Render tự deploy (nếu đã connect repo).
@@ -121,9 +121,9 @@ Sau mỗi push `main`, Vercel và Render tự deploy (nếu đã connect repo).
 ### Render — cập nhật thủ công (Dashboard → Environment)
 
 ```
-CLIENT_URL=https://web-hoc-stripe.vercel.app
+CLIENT_URL=https://joymed.vercel.app
 API_PUBLIC_URL=https://web-hoc-stripe.onrender.com
-EXTRA_CORS_ORIGINS=https://web-hoc-stripe.vercel.app
+EXTRA_CORS_ORIGINS=https://joymed.vercel.app
 NODE_ENV=production
 GOOGLE_CLIENT_ID=...
 GOOGLE_CLIENT_SECRET=...

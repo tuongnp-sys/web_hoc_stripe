@@ -1,9 +1,9 @@
 /**
  * Production smoke test (API + CORS).
- * Usage: API_URL=https://web-hoc-stripe.onrender.com CLIENT_ORIGIN=https://web-hoc-stripe.vercel.app node scripts/prod-smoke.js
+ * Usage: API_URL=https://web-hoc-stripe.onrender.com CLIENT_ORIGIN=https://joymed.vercel.app node scripts/prod-smoke.js
  */
 const API = (process.env.API_URL || 'https://web-hoc-stripe.onrender.com').replace(/\/$/, '');
-const ORIGIN = process.env.CLIENT_ORIGIN || 'https://web-hoc-stripe.vercel.app';
+const ORIGIN = process.env.CLIENT_ORIGIN || 'https://joymed.vercel.app';
 
 async function request(path, options = {}) {
   const res = await fetch(`${API}${path}`, {

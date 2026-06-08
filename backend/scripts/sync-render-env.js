@@ -18,9 +18,9 @@ const SERVICE_NAME = (process.env.RENDER_SERVICE_NAME || 'web-hoc-stripe').trim(
 
 const PRODUCTION_OVERRIDES = {
   NODE_ENV: 'production',
-  CLIENT_URL: 'https://web-hoc-stripe.vercel.app',
+  CLIENT_URL: 'https://joymed.vercel.app',
   API_PUBLIC_URL: 'https://web-hoc-stripe.onrender.com',
-  EXTRA_CORS_ORIGINS: 'https://web-hoc-stripe.vercel.app',
+  EXTRA_CORS_ORIGINS: 'https://joymed.vercel.app',
 };
 
 const SYNC_KEYS = [
