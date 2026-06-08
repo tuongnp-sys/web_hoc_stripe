@@ -108,6 +108,60 @@ export default function UsersPage() {
     });
   };
 
+  const notifyRefundQueueChange = () => {
+    window.dispatchEvent(new Event('admin-refund-updated'));
+  };
+
+  const approveRefund = (orderId) => {
+    setConfirm({
+      title: 'Approve refund request?',
+      message: 'This will issue a Stripe refund and deduct unspent Gold from the user. Cannot be undone.',
+      confirmLabel: 'Approve Refund',
+      danger: true,
+      onConfirm: async () => {
+        setConfirmLoading(true);
+        try {
+          await client.post(`/api/admin/orders/${orderId}/refund`);
+          showMsg('success', 'Refund approved and issued');
+          setConfirm(null);
+          const d = await fetchDetail(drawer.user.id);
+          setDrawer(d);
+          await loadUsers();
+          notifyRefundQueueChange();
+        } catch (err) {
+          showMsg('error', err.response?.data?.error || 'Refund failed');
+        } finally {
+          setConfirmLoading(false);
+        }
+      },
+    });
+  };
+
+  const rejectRefund = (orderId) => {
+    setConfirm({
+      title: 'Reject refund request?',
+      message: 'The user will see this request as rejected. No charge will be refunded.',
+      confirmLabel: 'Reject',
+      danger: false,
+      onConfirm: async () => {
+        setConfirmLoading(true);
+        try {
+          await client.post(`/api/admin/orders/${orderId}/refund/reject`);
+          showMsg('success', 'Refund request rejected');
+          setConfirm(null);
+          const d = await fetchDetail(drawer.user.id);
+          setDrawer(d);
+          await loadUsers();
+          notifyRefundQueueChange();
+        } catch (err) {
+          showMsg('error', err.response?.data?.error || 'Reject failed');
+        } finally {
+          setConfirmLoading(false);
+        }
+      },
+    });
+  };
+
   const requestDelete = (user) => {
     setConfirm({
       title: 'Delete permanently?',
@@ -189,8 +243,13 @@ export default function UsersPage() {
               </tr>
             )}
             {users.map((u) => (
-              <tr key={u.id}>
-                <td>{u.email}</td>
+              <tr key={u.id} className={u.pending_refund_count > 0 ? 'admin-refund-pending-row' : undefined}>
+                <td>
+                  {u.pending_refund_count > 0 && (
+                    <span className="admin-refund-dot" title="Pending refund request" aria-hidden="true" />
+                  )}
+                  {u.email}
+                </td>
                 <td>{u.role}</td>
                 <td><ScopeBadge scope={u.admin_scope} role={u.role} /></td>
                 <td><StatusBadge status={u.account_status} isRoot={u.is_root} /></td>
@@ -257,6 +316,8 @@ export default function UsersPage() {
               showMsg('error', err.response?.data?.error || 'Order access update failed');
             }
           }}
+          onApproveRefund={approveRefund}
+          onRejectRefund={rejectRefund}
           onAdjustGold={async (userId) => {
             const raw = window.prompt('Gold (+/- integer):', '100');
             if (raw == null) return;

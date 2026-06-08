@@ -12,7 +12,7 @@ export const refundPolicyContent = {
     },
     {
       heading: '3. How to Request',
-      body: 'Go to Billing History, find the eligible transaction, and click "Request Refund". Select a reason and submit. Eligible requests are processed automatically.',
+      body: 'Go to Billing History, find the eligible transaction, and click "Request Refund". Select a reason and submit. Eligible requests are reviewed by an admin before processing.',
     },
     {
       heading: '4. Gold Deduction',

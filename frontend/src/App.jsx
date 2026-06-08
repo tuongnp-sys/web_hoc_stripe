@@ -4,6 +4,7 @@ import Footer from './components/Footer';
 import StripeModeToggle from './components/StripeModeToggle';
 import NavPackageBadges from './components/NavPackageBadges';
 import Home from './pages/Home';
+import GamePage from './pages/GamePage';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import Success from './pages/Success';
@@ -28,11 +29,13 @@ function Nav() {
   return (
     <nav className="nav">
       <Link to="/" className="nav-brand">
-        Gold Rush Mini Game
+        Joymed
       </Link>
       {user && (
         <>
-          <Link to="/deposit">Add Funds</Link>
+          <Link to="/">Play</Link>
+          <Link to="/bonus">Gold Rush</Link>
+          <Link to="/deposit">Store</Link>
           <Link to="/billing">Billing</Link>
           <Link to="/account">Account</Link>
           {user.role === 'admin' && <Link to="/admin">Admin</Link>}
@@ -70,38 +73,48 @@ function PrivateRoute({ children }) {
   return children;
 }
 
-function Layout({ children }) {
+function Layout({ children, hideFooter = false }) {
   return (
     <div className="app-layout">
       <Nav />
       <main className="app-main">{children}</main>
-      <Footer />
+      {!hideFooter && <Footer />}
+    </div>
+  );
+}
+
+function GameLayout() {
+  return (
+    <div className="app-layout app-layout-game">
+      <Nav />
+      <main className="app-main app-main-game">
+        <GamePage />
+      </main>
     </div>
   );
 }
 
 export default function App() {
   return (
-    <Layout>
-      <Routes>
-        <Route path="/" element={<PrivateRoute><Home /></PrivateRoute>} />
-        <Route path="/deposit" element={<PrivateRoute><Deposit /></PrivateRoute>} />
+    <Routes>
+        <Route path="/" element={<PrivateRoute><GameLayout /></PrivateRoute>} />
+        <Route path="/bonus" element={<PrivateRoute><Layout><Home /></Layout></PrivateRoute>} />
+        <Route path="/deposit" element={<PrivateRoute><Layout><Deposit /></Layout></PrivateRoute>} />
         <Route path="/shop" element={<Navigate to="/deposit" replace />} />
-        <Route path="/billing" element={<PrivateRoute><Billing /></PrivateRoute>} />
-        <Route path="/account" element={<PrivateRoute><Account /></PrivateRoute>} />
-        <Route path="/login" element={<Login />} />
-        <Route path="/register" element={<Register />} />
+        <Route path="/billing" element={<PrivateRoute><Layout><Billing /></Layout></PrivateRoute>} />
+        <Route path="/account" element={<PrivateRoute><Layout><Account /></Layout></PrivateRoute>} />
+        <Route path="/login" element={<Layout hideFooter><Login /></Layout>} />
+        <Route path="/register" element={<Layout hideFooter><Register /></Layout>} />
         <Route path="/verify-email" element={<VerifyEmailCallback />} />
-        <Route path="/verify-email/pending" element={<PrivateRoute><VerifyEmail /></PrivateRoute>} />
-        <Route path="/forgot-password" element={<ForgotPassword />} />
-        <Route path="/reset-password" element={<ResetPassword />} />
-        <Route path="/success" element={<PrivateRoute><Success /></PrivateRoute>} />
-        <Route path="/cancel" element={<Cancel />} />
-        <Route path="/terms" element={<Terms />} />
-        <Route path="/privacy" element={<Privacy />} />
-        <Route path="/refund-policy" element={<RefundPolicy />} />
-        <Route path="/admin/*" element={<PrivateRoute><Admin /></PrivateRoute>} />
-      </Routes>
-    </Layout>
+        <Route path="/verify-email/pending" element={<PrivateRoute><Layout><VerifyEmail /></Layout></PrivateRoute>} />
+        <Route path="/forgot-password" element={<Layout hideFooter><ForgotPassword /></Layout>} />
+        <Route path="/reset-password" element={<Layout hideFooter><ResetPassword /></Layout>} />
+        <Route path="/success" element={<PrivateRoute><Layout><Success /></Layout></PrivateRoute>} />
+        <Route path="/cancel" element={<Layout><Cancel /></Layout>} />
+        <Route path="/terms" element={<Layout><Terms /></Layout>} />
+        <Route path="/privacy" element={<Layout><Privacy /></Layout>} />
+        <Route path="/refund-policy" element={<Layout><RefundPolicy /></Layout>} />
+        <Route path="/admin/*" element={<PrivateRoute><Layout><Admin /></Layout></PrivateRoute>} />
+    </Routes>
   );
 }

@@ -3,6 +3,7 @@ const orders = require('./orders');
 const entitlements = require('./entitlements');
 const subscriptions = require('./subscriptions');
 const wallet = require('./wallet');
+const game = require('./game');
 const refunds = require('./refunds');
 
 const PRODUCT_ENTITLEMENT = {
@@ -99,6 +100,24 @@ async function fulfillCheckoutSession(session) {
     };
   }
 
+  const energyConfig = game.PRODUCT_ENERGY[productKey];
+  if (energyConfig && order) {
+    const energyBalance = await game.creditEnergy(
+      userId,
+      energyConfig.amount,
+      order.id,
+      { mode: energyConfig.mode }
+    );
+    return {
+      fulfilled: true,
+      productKey,
+      order,
+      mode: 'payment',
+      energyCredited: energyConfig.amount,
+      energyBalance,
+    };
+  }
+
   return { fulfilled: true, productKey, order, mode: session.mode };
 }
 
@@ -181,6 +200,11 @@ async function handleChargeRefunded(charge) {
       order.id,
       'Charge refunded'
     );
+  }
+
+  const energyConfig = game.PRODUCT_ENERGY[order.product_key];
+  if (energyConfig) {
+    await game.debitEnergyForRefund(order.user_id, energyConfig, order.id);
   }
 
   const featureKey = entitlementForProduct(order.product_key);

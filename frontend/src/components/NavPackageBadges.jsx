@@ -1,58 +1,32 @@
 import { useEffect, useState } from 'react';
 import client from '../api/client';
 
-const PACKAGE_LABELS = {
-  gold_starter: 'Starter Pack',
-  gold_popular: 'Popular Pack',
-  gold_pro: 'Pro Pack',
-  gold_mega: 'Mega Pack',
-  premium_monthly: 'Premium',
-  game_unlock: 'Game Unlock',
-  premium: 'Premium',
-};
-
-function labelFor(key, description) {
-  return description || PACKAGE_LABELS[key] || key;
-}
-
 export default function NavPackageBadges() {
-  const [packages, setPackages] = useState([]);
+  const [energy, setEnergy] = useState(null);
+  const [gold, setGold] = useState(null);
+  const [isVip, setIsVip] = useState(false);
 
   useEffect(() => {
     Promise.all([
-      client.get('/api/entitlements'),
-      client.get('/api/orders', { params: { limit: 50 } }),
-    ])
-      .then(([entRes, ordersRes]) => {
-        const names = new Set();
-
-        if (entRes.data.premium) {
-          names.add('Premium');
-        }
-        if (entRes.data.gameUnlock) {
-          names.add('Game Unlock');
-        }
-
-        for (const order of ordersRes.data.orders || []) {
-          if (order.status !== 'paid') continue;
-          if (order.access_enabled === false) continue;
-          names.add(labelFor(order.product_key, order.description));
-        }
-
-        setPackages([...names]);
-      })
-      .catch(() => setPackages([]));
+      client.get('/api/game/profile').catch(() => ({ data: {} })),
+      client.get('/api/wallet').catch(() => ({ data: { goldBalance: 0 } })),
+      client.get('/api/entitlements').catch(() => ({ data: { premium: false } })),
+    ]).then(([gameRes, walletRes, entRes]) => {
+      setEnergy(gameRes.data.energy);
+      setGold(walletRes.data.goldBalance);
+      setIsVip(Boolean(entRes.data.premium || gameRes.data.isVip));
+    });
   }, []);
 
-  if (!packages.length) return null;
-
   return (
-    <span className="nav-packages" title="Active packages">
-      {packages.map((name) => (
-        <span key={name} className="nav-package-badge">
-          {name}
-        </span>
-      ))}
+    <span className="nav-packages" title="Balances">
+      {isVip && <span className="nav-package-badge nav-badge-vip">VIP</span>}
+      {energy !== null && !isVip && (
+        <span className="nav-package-badge">⚡ {energy}</span>
+      )}
+      {gold !== null && gold > 0 && (
+        <span className="nav-package-badge">🪙 {gold.toLocaleString()}</span>
+      )}
     </span>
   );
 }

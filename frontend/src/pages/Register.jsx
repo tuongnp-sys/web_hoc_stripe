@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link, Navigate, useNavigate } from 'react-router-dom';
+import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import { API_URL } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import useOAuthAvailability from '../hooks/useOAuthAvailability';
@@ -13,6 +13,9 @@ function oauthUrl(provider) {
 export default function Register() {
   const { user, register } = useAuth();
   const navigate = useNavigate();
+  const [params] = useSearchParams();
+  const returnTo = params.get('return') || '/';
+  const safeReturn = returnTo.startsWith('/') && !returnTo.startsWith('//') ? returnTo : '/';
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -22,7 +25,7 @@ export default function Register() {
   const [loading, setLoading] = useState(false);
   const oauth = useOAuthAvailability();
 
-  if (user) return <Navigate to="/" replace />;
+  if (user) return <Navigate to={safeReturn} replace />;
 
   const handleSubmit = async (e) => {
     e.preventDefault();

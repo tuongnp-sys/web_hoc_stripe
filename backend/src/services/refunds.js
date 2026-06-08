@@ -2,8 +2,7 @@ const { getPool } = require('../db/pool');
 const stripeService = require('./stripe');
 const orders = require('./orders');
 const wallet = require('./wallet');
-
-const REFUND_WINDOW_MS = 48 * 60 * 60 * 1000;
+const appSettings = require('./appSettings');
 
 const VALID_REASONS = [
   'wrong_package',
@@ -16,7 +15,7 @@ function isEligible(order) {
   if (!order || order.status !== 'paid') return false;
   if (order.mode === 'subscription') return false;
   const age = Date.now() - new Date(order.paid_at || order.created_at).getTime();
-  if (age > REFUND_WINDOW_MS) return false;
+  if (age > appSettings.getRefundWindowMs()) return false;
   return (order.gold_unspent ?? 0) > 0;
 }
 
@@ -121,6 +120,37 @@ async function findById(id) {
   return rows[0] || null;
 }
 
+async function rejectRequest(orderId) {
+  const { rows } = await getPool().query(
+    `UPDATE refund_requests SET status = 'rejected', updated_at = NOW()
+     WHERE order_id = $1 AND status = 'pending'
+     RETURNING *`,
+    [orderId]
+  );
+  if (!rows[0]) throw new Error('No pending refund request for this order');
+  return rows[0];
+}
+
+async function listPending() {
+  const { rows } = await getPool().query(
+    `SELECT r.id, r.order_id, r.user_id, r.reason, r.reason_detail, r.status, r.created_at,
+            u.email, o.product_key, o.description, o.amount, o.currency, o.gold_unspent
+     FROM refund_requests r
+     JOIN users u ON u.id = r.user_id
+     JOIN orders o ON o.id = r.order_id
+     WHERE r.status = 'pending'
+     ORDER BY r.created_at ASC`
+  );
+  return rows;
+}
+
+async function countPending() {
+  const { rows } = await getPool().query(
+    `SELECT COUNT(*)::int AS count FROM refund_requests WHERE status = 'pending'`
+  );
+  return rows[0]?.count ?? 0;
+}
+
 async function markCompletedByStripeRefund(stripeRefundId, paymentIntentId) {
   await getPool().query(
     `UPDATE refund_requests SET status = 'completed', stripe_refund_id = $2, updated_at = NOW()
@@ -132,7 +162,6 @@ async function markCompletedByStripeRefund(stripeRefundId, paymentIntentId) {
 }
 
 module.exports = {
-  REFUND_WINDOW_MS,
   VALID_REASONS,
   isEligible,
   findByOrderId,
@@ -140,5 +169,8 @@ module.exports = {
   createRequest,
   processRefund,
   findById,
+  rejectRequest,
+  listPending,
+  countPending,
   markCompletedByStripeRefund,
 };

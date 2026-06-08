@@ -23,10 +23,10 @@ export default function Success() {
         .then(async (res) => {
           if (res.data.paid) {
             setOk(true);
-            const goldMsg = res.data.goldCredited
-              ? ` +${res.data.goldCredited} Gold credited!`
-              : '';
-            setMessage(`Payment successful!${goldMsg}`);
+            const parts = ['Payment successful!'];
+            if (res.data.goldCredited) parts.push(`+${res.data.goldCredited} Gold credited.`);
+            if (res.data.energyCredited) parts.push(`+${res.data.energyCredited} Energy credited.`);
+            setMessage(parts.join(' '));
             await client.post('/api/checkout/sync-pending').catch(() => {});
           } else if (attempts < maxAttempts) {
             attempts += 1;
@@ -50,8 +50,8 @@ export default function Success() {
         <h1>Payment Confirmation</h1>
         <p className={ok ? 'success-text' : 'warn-text'}>{message}</p>
         <p>
-          <Link to="/">Game</Link> · <Link to="/billing">Billing History</Link> ·{' '}
-          <Link to="/deposit">Add Funds</Link>
+          <Link to="/?purchase=success">Play Game</Link> · <Link to="/billing">Billing History</Link> ·{' '}
+          <Link to="/deposit">Store</Link>
         </p>
       </div>
     </div>

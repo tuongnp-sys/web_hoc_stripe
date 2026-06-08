@@ -47,6 +47,32 @@ const PRODUCTS = {
     badge: 'Best Value',
     savings: 'Save 30%',
   },
+  energy_refill: {
+    key: 'energy_refill',
+    name: 'Energy Refill',
+    description: 'Restore energy to full (5 plays)',
+    amount: 99,
+    currency: 'usd',
+    mode: 'payment',
+    gold: 0,
+    energy: 5,
+    energyMode: 'full',
+    badge: null,
+    savings: null,
+  },
+  energy_pack_5: {
+    key: 'energy_pack_5',
+    name: 'Energy Pack',
+    description: '+5 energy for more meditation runs',
+    amount: 199,
+    currency: 'usd',
+    mode: 'payment',
+    gold: 0,
+    energy: 5,
+    energyMode: 'add',
+    badge: null,
+    savings: null,
+  },
   premium_monthly: {
     key: 'premium_monthly',
     name: 'Premium Monthly',
@@ -69,6 +95,13 @@ function formatPrice(product) {
   return product.mode === 'subscription' ? `${price}/mo` : price;
 }
 
+function getProductCategory(product) {
+  if (product.energy) return 'energy';
+  if (product.gold > 0) return 'gold';
+  if (product.entitlement) return 'vip';
+  return 'other';
+}
+
 function getProducts() {
   return Object.values(PRODUCTS).map((p) => ({
     key: p.key,
@@ -78,6 +111,9 @@ function getProducts() {
     currency: p.currency,
     mode: p.mode,
     gold: p.gold || 0,
+    energy: p.energy || 0,
+    energyMode: p.energyMode || null,
+    category: getProductCategory(p),
     badge: p.badge,
     savings: p.savings,
     displayPrice: formatPrice(p),
@@ -130,7 +166,7 @@ function buildLineItem(product) {
   };
 
   const priceId = priceMap[product.key];
-  if (priceId) return { price: priceId, quantity: 1 };
+  if (priceId && !product.priceOverridden) return { price: priceId, quantity: 1 };
 
   if (product.mode === 'payment') {
     return {
@@ -154,10 +190,9 @@ function buildLineItem(product) {
   };
 }
 
-async function createCheckoutSession({ user, productKey, successUrl, cancelUrl, stripeMode = 'test' }) {
+async function createCheckoutSession({ user, product, successUrl, cancelUrl, stripeMode = 'test' }) {
   const mode = normalizeMode(stripeMode);
   const stripe = getStripeClient(mode);
-  const product = PRODUCTS[productKey];
   if (!product) throw new Error('Product not found');
 
   const customerId = await getOrCreateCustomer(user, mode);
@@ -234,6 +269,7 @@ module.exports = {
   PRODUCTS,
   GOLD_PACK_KEYS,
   getProducts,
+  getProductCategory,
   getOrCreateCustomer,
   createCheckoutSession,
   retrieveSession,

@@ -4,6 +4,8 @@ const adminUsers = require('../services/adminUsers');
 const adminAccess = require('../services/adminAccess');
 const audit = require('../services/adminAudit');
 const orders = require('../services/orders');
+const refunds = require('../services/refunds');
+const appSettings = require('../services/appSettings');
 const { getPool } = require('../db/pool');
 
 const router = express.Router();
@@ -122,6 +124,86 @@ router.patch('/orders/:id/access', requireScope('edit'), async (req, res, next) 
   }
 });
 
+router.get('/refund-requests/count', async (_req, res, next) => {
+  try {
+    const count = await refunds.countPending();
+    res.json({ count });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.get('/refund-requests', async (_req, res, next) => {
+  try {
+    const requests = await refunds.listPending();
+    res.json({ requests });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post('/orders/:id/refund', requireScope('edit'), async (req, res, next) => {
+  try {
+    const { rows } = await getPool().query(
+      `SELECT id, user_id, status, mode, paid_at, created_at, gold_amount, gold_unspent,
+              stripe_payment_intent_id, product_key
+       FROM orders WHERE id = $1`,
+      [req.params.id]
+    );
+    const order = rows[0];
+    if (!order) return res.status(404).json({ error: 'Order not found' });
+
+    const existing = await refunds.findByOrderId(order.id);
+    if (!existing || existing.status !== 'pending') {
+      return res.status(400).json({ error: 'No pending refund request for this order' });
+    }
+
+    if (!refunds.isEligible(order)) {
+      return res.status(400).json({
+        error: 'Order is no longer eligible for refund',
+      });
+    }
+
+    const processed = await refunds.processRefund(existing.id);
+
+    await audit.logAction(req.user.id, 'refund.approve', 'order', order.id, {
+      refundRequestId: existing.id,
+      targetUserId: order.user_id,
+    });
+
+    res.status(201).json({ refund: processed });
+  } catch (err) {
+    if (err.message.includes('not eligible') || err.message.includes('No pending')) {
+      return res.status(400).json({ error: err.message });
+    }
+    next(err);
+  }
+});
+
+router.post('/orders/:id/refund/reject', requireScope('edit'), async (req, res, next) => {
+  try {
+    const { rows } = await getPool().query('SELECT id, user_id FROM orders WHERE id = $1', [
+      req.params.id,
+    ]);
+    const order = rows[0];
+    if (!order) return res.status(404).json({ error: 'Order not found' });
+
+    const rejected = await refunds.rejectRequest(order.id);
+
+    await audit.logAction(req.user.id, 'refund.reject', 'order', order.id, {
+      refundRequestId: rejected.id,
+      targetUserId: order.user_id,
+    });
+
+    res.json({ request: rejected });
+  } catch (err) {
+    if (err.message.includes('No pending')) {
+      return res.status(400).json({ error: err.message });
+    }
+    next(err);
+  }
+});
+
 router.get('/products', async (_req, res, next) => {
   try {
     const products = await adminUsers.listProducts();
@@ -133,13 +215,65 @@ router.get('/products', async (_req, res, next) => {
 
 router.patch('/products/:key', requireScope('edit'), async (req, res, next) => {
   try {
-    const { enabled } = req.body;
-    if (enabled === undefined) {
-      return res.status(400).json({ error: 'enabled is required' });
+    const { enabled, name, description, amountCents, badge, savings, sortOrder } = req.body;
+    const hasField =
+      enabled !== undefined ||
+      name !== undefined ||
+      description !== undefined ||
+      amountCents !== undefined ||
+      badge !== undefined ||
+      savings !== undefined ||
+      sortOrder !== undefined;
+
+    if (!hasField) {
+      return res.status(400).json({ error: 'At least one field is required' });
     }
-    const product = await adminUsers.setProductEnabled(req.user, req.params.key, enabled);
+
+    const product = await adminUsers.updateProduct(req.user, req.params.key, {
+      enabled,
+      name,
+      description,
+      amountCents,
+      badge,
+      savings,
+      sortOrder,
+    });
     res.json({ product });
   } catch (err) {
+    if (err.status) return res.status(err.status).json({ error: err.message });
+    next(err);
+  }
+});
+
+router.get('/settings/refund-policy', async (_req, res, next) => {
+  try {
+    const settings = await appSettings.getRefundPolicySettings();
+    const policy = await appSettings.getRefundPolicyContent();
+    res.json({
+      windowHours: settings.windowHours,
+      minWindowHours: appSettings.MIN_WINDOW_HOURS,
+      maxWindowHours: appSettings.MAX_WINDOW_HOURS,
+      updatedAt: settings.updatedAt,
+      policy,
+      previewSections: policy.sections.filter((s) =>
+        ['2. Eligibility Window', '6. Non-Refundable Items'].includes(s.heading)
+      ),
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.patch('/settings/refund-policy', requireScope('edit'), async (req, res, next) => {
+  try {
+    const { windowHours } = req.body;
+    if (windowHours === undefined) {
+      return res.status(400).json({ error: 'windowHours is required' });
+    }
+    const result = await appSettings.setRefundPolicySettings(req.user, { windowHours });
+    res.json(result);
+  } catch (err) {
+    if (err.status) return res.status(err.status).json({ error: err.message });
     next(err);
   }
 });

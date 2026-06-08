@@ -10,7 +10,53 @@ function Toggle({ checked, onChange, label, disabled }) {
   );
 }
 
-export default function UserDetailDrawer({ detail, capabilities, onClose, onEdit, onToggleEntitlement, onToggleOrderAccess, onAdjustGold }) {
+function RefundCell({ order, canEdit, onApproveRefund, onRejectRefund }) {
+  if (order.status === 'refunded' || order.refund_request_status === 'completed') {
+    return <span className="hint">Refunded</span>;
+  }
+  if (order.refund_request_status === 'rejected') {
+    return <span className="hint">Rejected</span>;
+  }
+  if (order.refund_request_status === 'processing') {
+    return <span className="hint">Processing…</span>;
+  }
+  if (order.refund_request_status === 'pending') {
+    return (
+      <div className="admin-refund-actions">
+        <button
+          type="button"
+          className="btn btn-approve-refund admin-btn-inline"
+          disabled={!canEdit}
+          title={canEdit ? 'Approve user refund request' : 'Requires edit scope'}
+          onClick={() => onApproveRefund(order.id)}
+        >
+          Approve Refund
+        </button>
+        <button
+          type="button"
+          className="btn btn-secondary admin-btn-inline"
+          disabled={!canEdit}
+          onClick={() => onRejectRefund(order.id)}
+        >
+          Reject
+        </button>
+      </div>
+    );
+  }
+  return '—';
+}
+
+export default function UserDetailDrawer({
+  detail,
+  capabilities,
+  onClose,
+  onEdit,
+  onToggleEntitlement,
+  onToggleOrderAccess,
+  onAdjustGold,
+  onApproveRefund,
+  onRejectRefund,
+}) {
   const u = detail.user;
   const canEdit = capabilities?.canEdit;
 
@@ -78,11 +124,15 @@ export default function UserDetailDrawer({ detail, capabilities, onClose, onEdit
                 <th>Product</th>
                 <th>Status</th>
                 <th>Access</th>
+                <th>Refund</th>
               </tr>
             </thead>
             <tbody>
               {detail.orders.map((o) => (
-                <tr key={o.id}>
+                <tr
+                  key={o.id}
+                  className={o.refund_request_status === 'pending' ? 'admin-refund-pending-row' : undefined}
+                >
                   <td>{o.description || o.product_key}</td>
                   <td>{o.status}</td>
                   <td>
@@ -96,6 +146,14 @@ export default function UserDetailDrawer({ detail, capabilities, onClose, onEdit
                     ) : (
                       '—'
                     )}
+                  </td>
+                  <td>
+                    <RefundCell
+                      order={o}
+                      canEdit={canEdit}
+                      onApproveRefund={onApproveRefund}
+                      onRejectRefund={onRejectRefund}
+                    />
                   </td>
                 </tr>
               ))}

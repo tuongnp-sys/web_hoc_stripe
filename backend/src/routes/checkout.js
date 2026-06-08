@@ -4,7 +4,7 @@ const { requireAuth, requireVerifiedEmail } = require('../middleware/auth');
 const { requireStripeMode } = require('../middleware/stripeMode');
 const stripeService = require('../services/stripe');
 const orders = require('../services/orders');
-const { isProductEnabled } = require('../services/productCatalog');
+const { isProductEnabled, resolveProduct } = require('../services/productCatalog');
 const {
   fulfillCheckoutSession,
   syncPendingOrdersForUser,
@@ -14,7 +14,7 @@ const router = express.Router();
 
 async function startCheckout(req, res, next, productKey) {
   try {
-    const product = stripeService.PRODUCTS[productKey];
+    const product = await resolveProduct(productKey);
     if (!product) {
       return res.status(400).json({ error: 'Product not found' });
     }
@@ -36,7 +36,7 @@ async function startCheckout(req, res, next, productKey) {
 
     const session = await stripeService.createCheckoutSession({
       user: req.user,
-      productKey,
+      product,
       successUrl,
       cancelUrl,
       stripeMode: req.stripeMode,
@@ -102,6 +102,8 @@ router.get('/verify-session/:sessionId', requireAuth, async (req, res, next) => 
         productKey: result.productKey,
         goldCredited: result.goldCredited,
         goldBalance: result.goldBalance,
+        energyCredited: result.energyCredited,
+        energyBalance: result.energyBalance,
       });
     }
 

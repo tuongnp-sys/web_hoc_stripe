@@ -26,9 +26,11 @@ const API = process.env.API_URL || 'http://localhost:3000';
   console.log('isEmailVerified():', isEmailVerified(user));
 
   try {
+    const { resolveProduct } = require('../src/services/productCatalog');
+    const product = await resolveProduct('gold_starter');
     const session = await stripeService.createCheckoutSession({
       user,
-      productKey: 'gold_starter',
+      product,
       successUrl: `${config.clientUrl}/success?session_id={CHECKOUT_SESSION_ID}`,
       cancelUrl: `${config.clientUrl}/cancel`,
     });

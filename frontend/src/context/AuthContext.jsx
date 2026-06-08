@@ -1,4 +1,4 @@
-﻿import { createContext, useContext, useEffect, useState } from 'react';
+﻿import { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import client from '../api/client';
 import { ACCOUNT_SUSPENDED_CODE } from '../constants/authMessages';
 
@@ -12,12 +12,12 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  const logout = () => {
+  const logout = useCallback(() => {
     localStorage.removeItem('token');
     setUser(null);
-  };
+  }, []);
 
-  const refreshUser = async () => {
+  const refreshUser = useCallback(async () => {
     const token = localStorage.getItem('token');
     if (!token) return null;
     try {
@@ -30,7 +30,7 @@ export function AuthProvider({ children }) {
       }
       throw err;
     }
-  };
+  }, [logout]);
 
   useEffect(() => {
     const token = localStorage.getItem('token');

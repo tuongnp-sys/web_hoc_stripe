@@ -7,6 +7,7 @@ import ProductsPage from './admin/ProductsPage';
 import OrdersPage from './admin/OrdersPage';
 import AuditPage from './admin/AuditPage';
 import WebhooksPage from './admin/WebhooksPage';
+import SettingsPage from './admin/SettingsPage';
 
 export default function Admin() {
   const { user } = useAuth();
@@ -38,6 +39,14 @@ export default function Admin() {
           element={
             <AdminLayout activeTab="products">
               <ProductsPage />
+            </AdminLayout>
+          }
+        />
+        <Route
+          path="settings"
+          element={
+            <AdminLayout activeTab="settings">
+              <SettingsPage />
             </AdminLayout>
           }
         />

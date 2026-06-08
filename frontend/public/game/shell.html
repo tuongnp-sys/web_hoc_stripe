@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Joymed — 7 Layers of Ascent</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/game/css/style.css" />
+</head>
+<body>
+  <div class="app">
+    <header class="header">
+      <h1 class="logo">Joymed</h1>
+      <p class="tagline">7 Layers of Ascent</p>
+    </header>
+
+    <main class="main">
+      <section id="auth-panel" class="panel auth-panel">
+        <h2>Sign In to Play</h2>
+        <p class="panel-desc">Create an account to save progress, energy, and purchases.</p>
+        <div class="login-form">
+          <a id="btn-sign-in" class="btn btn-primary" href="/login?return=/">Sign In</a>
+          <a id="btn-sign-up" class="btn btn-secondary" href="/register?return=/">Create Account</a>
+        </div>
+        <p id="auth-error" class="error-text" hidden></p>
+      </section>
+
+      <section id="game-section" class="game-section" hidden>
+        <div id="hud" class="hud">
+          <div class="hud-item">
+            <span class="hud-label">Player</span>
+            <span id="hud-username" class="hud-value">—</span>
+          </div>
+          <div class="hud-item">
+            <span class="hud-label">Best Score</span>
+            <span id="hud-highscore" class="hud-value">0</span>
+          </div>
+          <div class="hud-item hud-item-energy">
+            <span class="hud-label">Energy</span>
+            <span id="hud-energy" class="hud-value hud-value-energy">—</span>
+            <span id="hud-energy-countdown" class="hud-energy-countdown" hidden></span>
+          </div>
+          <div id="vip-badge" class="vip-badge" hidden>VIP</div>
+          <button type="button" id="btn-logout" class="hud-logout">Log out</button>
+        </div>
+
+        <details id="leaderboard-panel" class="leaderboard-panel panel">
+          <summary class="leaderboard-summary">Top Ascenders</summary>
+          <div class="leaderboard-body">
+            <ol id="leaderboard-list" class="leaderboard-list"></ol>
+            <p id="leaderboard-empty" class="leaderboard-empty" hidden>No scores yet — be the first.</p>
+            <p id="leaderboard-error" class="error-text leaderboard-error" hidden>
+              Could not load leaderboard.
+            </p>
+          </div>
+        </details>
+
+        <div id="game-controls" class="game-controls is-hidden" aria-hidden="true">
+          <button type="button" id="btn-pause" class="btn btn-control">Pause</button>
+          <button type="button" id="btn-resume" class="btn btn-control is-hidden">Resume</button>
+          <button type="button" id="btn-stop" class="btn btn-control btn-stop">Stop</button>
+        </div>
+
+        <div id="game-announcements" class="sr-only" aria-live="polite" aria-atomic="true"></div>
+
+        <div class="game-play-stack">
+          <div id="game-stats-bar" class="game-stats-bar is-hidden" aria-hidden="true">
+            <div class="game-stats-row">
+              <div class="game-stat game-stat--layer">
+                <span class="game-stat-label">Layer</span>
+                <span id="stat-layer" class="game-stat-value">1 / 7</span>
+              </div>
+              <div class="game-stat game-stat--progress">
+                <span class="game-stat-label">Ascend</span>
+                <span id="stat-progress" class="game-stat-value">0 / 180</span>
+              </div>
+              <div class="game-stat game-stat--combo">
+                <span class="game-stat-label">Flow</span>
+                <span id="stat-combo" class="game-stat-value">0</span>
+              </div>
+              <div class="game-stat game-stat--score">
+                <span class="game-stat-label">Score</span>
+                <span id="stat-score" class="game-stat-value">0</span>
+              </div>
+              <div class="game-stat game-stat--best">
+                <span class="game-stat-label">Best</span>
+                <span id="stat-best" class="game-stat-value">0</span>
+              </div>
+              <div class="game-stat game-stat--halo">
+                <span class="game-stat-label">Halo</span>
+                <span id="stat-halo" class="game-stat-value">0%</span>
+              </div>
+              <span id="stat-shield" class="game-stat-badge game-stat-badge--shield" hidden>Shield</span>
+              <span id="stat-downgrades" class="game-stat-badge game-stat-badge--downgrades">Downgrades 0/3</span>
+            </div>
+            <div class="game-stat-halo-bar" aria-hidden="true">
+              <div id="stat-halo-fill" class="game-stat-halo-fill"></div>
+            </div>
+            <div class="game-stat-layer-progress" aria-hidden="true">
+              <div id="stat-layer-progress-fill" class="game-stat-layer-progress-fill"></div>
+            </div>
+          </div>
+
+          <div id="game-session-bar" class="game-session-bar is-hidden" aria-hidden="true">
+            <div class="game-session-energy">
+              <span class="game-session-energy-label">Energy</span>
+              <span id="session-hud-energy" class="game-session-energy-value">—</span>
+              <div class="game-session-energy-meter" aria-hidden="true">
+                <div id="session-energy-fill" class="game-session-energy-fill"></div>
+              </div>
+              <span id="session-hud-energy-countdown" class="game-session-energy-countdown" hidden></span>
+            </div>
+            <div class="game-session-actions">
+              <button type="button" id="btn-pause-mobile" class="btn-session btn-session-pause" aria-label="Pause">Pause</button>
+              <button type="button" id="btn-resume-mobile" class="btn-session btn-session-resume is-hidden" aria-label="Resume">Resume</button>
+              <button type="button" id="btn-stop-mobile" class="btn-session btn-session-stop" aria-label="Stop run">Stop</button>
+            </div>
+          </div>
+
+          <div id="game-stage" class="game-stage">
+            <div id="game-stage-viewport" class="game-stage-viewport">
+              <div class="canvas-wrap">
+                <canvas
+                  id="game-canvas"
+                  width="900"
+                  height="520"
+                  role="img"
+                  aria-label="Meditation ascent game. Layer 1: move horizontally and jump. Layer 2 and above: fly in four directions. Collect golden scriptures for shield and halo; avoid non-yellow negative thoughts."
+                ></canvas>
+
+                <div id="overlay-start" class="overlay is-hidden" aria-hidden="true">
+              <h2>Center Your Focus</h2>
+              <div class="overlay-mobile-only">
+                <p>Left: move · Right: <strong>Jump</strong> · Gold = shield; avoid gray thoughts.</p>
+                <p>Layer 2+: use the <strong>arrow pad</strong> (4 directions) · Halo ≥30%: <strong>Pulse</strong>.</p>
+                <p class="overlay-note">Each new run from Layer 1 uses 1 energy (VIP plays freely).</p>
+              </div>
+              <div class="overlay-desktop-only">
+                <p>Survive each layer for <strong>45–90 seconds</strong> (longer with more Halo mindfulness). Avoid <strong>negative thoughts</strong> (non-yellow) — three layer downgrades end your run.</p>
+                <p>Collect bright <strong>golden Scriptures</strong> — a cheerful chime and a protective halo (1–2 hits) like Mario.</p>
+                <p>Negative thoughts play a dull tone and strip shield layers. At 30% Halo, click for a <strong>Shockwave</strong>.</p>
+                <p>Layer 1: move left/right, jump. <strong>Layer 2+</strong>: fly in all four directions.</p>
+                <p>Move: <kbd>←</kbd><kbd>→</kbd> or <kbd>A</kbd><kbd>D</kbd> · Jump/Up: <kbd>Space</kbd> · Layer 2+ Up/Down: <kbd>↑</kbd><kbd>↓</kbd> or <kbd>W</kbd><kbd>S</kbd></p>
+                <p class="overlay-note">Each new run from Layer 1 uses 1 energy (VIP plays freely).</p>
+              </div>
+              <p id="start-energy-zero-hint" class="start-energy-zero-hint" hidden role="status">
+                No energy left. Wait for the refill timer above, or unlock VIP for unlimited plays.
+              </p>
+              <p id="start-error" class="error-text start-error" hidden role="alert"></p>
+              <button type="button" id="btn-start-game" class="btn btn-primary restart-btn" aria-label="Start meditation game">Start Meditation</button>
+            </div>
+
+            <div id="overlay-energy" class="overlay overlay-warning is-hidden" aria-hidden="true">
+              <h2>Out of Energy</h2>
+              <p>Your focus needs rest. Return when your energy refills, or unlock VIP for unlimited plays.</p>
+              <p id="energy-countdown" class="energy-countdown" hidden>Energy refills in 00:00:00</p>
+              <p id="energy-status-error" class="error-text energy-status-error" hidden role="alert">
+                Could not load energy status. Please try again later.
+              </p>
+              <button type="button" id="btn-restore-energy" class="btn btn-secondary" aria-label="Buy energy refill">
+                Restore Energy — $0.99
+              </button>
+              <button type="button" id="btn-spend-gold" class="btn btn-secondary" aria-label="Spend 100 Gold to refill energy">
+                Use 100 Gold
+              </button>
+              <button type="button" id="btn-upgrade-vip" class="btn btn-primary" aria-label="Upgrade to VIP">
+                Upgrade to VIP
+              </button>
+              <button type="button" id="btn-energy-back" class="btn btn-secondary" aria-label="Return to meditation start screen">Return</button>
+            </div>
+
+            <div id="gameOverOverlay" class="overlay overlay-danger is-hidden" aria-hidden="true">
+              <h2>Focus Lost</h2>
+              <p id="gameover-message">Three layer downgrades ended your ascent.</p>
+              <p>Final score: <strong id="final-score">0</strong></p>
+              <p id="gameover-run-summary" class="run-summary"></p>
+              <p id="record-message" class="record-message is-hidden">New personal best saved!</p>
+              <button type="button" id="btn-retry" class="btn btn-primary restart-btn" aria-label="Try again after focus lost">Try Again</button>
+            </div>
+
+            <div id="surrenderOverlay" class="overlay overlay-surrender is-hidden" aria-hidden="true">
+              <h2>Session Ended</h2>
+              <p id="surrender-message">You actively stopped the meditation.</p>
+              <p>Final score: <strong id="surrender-score">0</strong></p>
+              <p id="surrender-run-summary" class="run-summary"></p>
+              <p id="surrender-record-message" class="record-message is-hidden">New personal best saved!</p>
+              <button type="button" id="btn-surrender-back" class="btn btn-secondary" aria-label="Return to meditation start screen">Return</button>
+              <button type="button" id="btn-surrender-restart" class="btn btn-primary restart-btn" aria-label="Start a new meditation run">Meditate Again</button>
+            </div>
+
+            <div id="overlay-layer" class="overlay overlay-layer is-hidden" aria-hidden="true">
+              <h2 id="layer-transition-title">Ascending…</h2>
+              <p id="layer-transition-desc"></p>
+            </div>
+
+            <div id="victoryOverlay" class="overlay overlay-victory is-hidden" aria-hidden="true">
+              <h2>Right Fruition — Chánh Quả</h2>
+              <p>You have attained enlightenment. Your halo radiates beyond all space — boundless and luminous.</p>
+              <p>Final score: <strong id="victory-score">0</strong></p>
+              <p>Best score: <strong id="victory-best">0</strong></p>
+              <p id="victory-run-summary" class="run-summary"></p>
+              <p id="victory-record-message" class="record-message is-hidden">New personal best saved!</p>
+              <button type="button" id="meditateAgainBtn" class="btn btn-primary restart-btn" aria-label="Start a new meditation run after victory">Meditate Again</button>
+            </div>
+              </div>
+            </div>
+
+            <div id="touch-controls" class="touch-controls is-hidden" aria-hidden="true">
+              <div class="touch-zone touch-zone-move">
+                <div id="touch-dpad" class="touch-dpad touch-dpad--ground">
+                  <button type="button" id="touch-fly-up" class="touch-btn touch-btn-dir touch-dpad-vert is-hidden" aria-label="Move up" hidden>▲</button>
+                  <button type="button" id="touch-left" class="touch-btn touch-btn-dir" aria-label="Move left">◀</button>
+                  <button type="button" id="touch-right" class="touch-btn touch-btn-dir" aria-label="Move right">▶</button>
+                  <button type="button" id="touch-fly-down" class="touch-btn touch-btn-dir touch-dpad-vert is-hidden" aria-label="Move down" hidden>▼</button>
+                </div>
+                <div id="touch-joystick-mount" class="touch-joystick-mount is-hidden" aria-hidden="true">
+                  <div class="joystick-base" aria-hidden="true">
+                    <div class="joystick-stick"></div>
+                  </div>
+                  <span class="joystick-label">Move</span>
+                </div>
+              </div>
+              <div class="touch-zone touch-zone-actions">
+                <button type="button" id="touch-shockwave" class="touch-btn touch-btn-shockwave" aria-label="Shockwave pulse">
+                  Pulse
+                </button>
+                <button type="button" id="touch-jump" class="touch-btn touch-btn-jump" aria-label="Jump or move up">Jump</button>
+                <button type="button" id="touch-down" class="touch-btn touch-btn-down touch-btn-layer-fly is-hidden" aria-label="Move down" hidden>Down</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <p class="layer-name" id="layer-name">Layer 1: Earth Ground</p>
+        <p id="controls-hint" class="controls-hint">Golden = shield + Halo · Dull hit = lose shield · Layer 2+ four-way flight · 3 downgrades = over</p>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <p>Breathe. Focus. Ascend.</p>
+    </footer>
+  </div>
+
+  <!-- Production: Vercel proxies /api → Render (see frontend/vercel.json). Optional direct API: -->
+  <!-- <script>window.MEDITATION_API_URL = 'https://meditation-api.onrender.com';</script> -->
+  <script type="module" src="/game/js/main.js"></script>
+</body>
+</html>

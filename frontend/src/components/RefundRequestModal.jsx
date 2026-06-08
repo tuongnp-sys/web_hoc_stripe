@@ -49,8 +49,8 @@ export default function RefundRequestModal({ order, onClose, onSuccess }) {
           Order #{order.shortId || order.id.slice(0, 8)} — {order.description || order.product_key}
         </p>
         <p className="refund-notice">
-          After a successful refund, {order.gold_unspent?.toLocaleString() || 0} Gold from this purchase
-          will be deducted from your account. Funds return to your payment method in 5–10 business days.
+          Your request will be reviewed by an admin. If approved, {order.gold_unspent?.toLocaleString() || 0} Gold
+          from this purchase will be deducted and funds return to your payment method in 5–10 business days.
         </p>
         <form onSubmit={handleSubmit}>
           <div className="form-group">

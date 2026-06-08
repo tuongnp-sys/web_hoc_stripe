@@ -2,6 +2,7 @@ const express = require('express');
 const { requireAuth } = require('../middleware/auth');
 const refunds = require('../services/refunds');
 const orders = require('../services/orders');
+const appSettings = require('../services/appSettings');
 
 const router = express.Router();
 
@@ -23,6 +24,7 @@ router.get('/eligibility/:orderId', requireAuth, async (req, res, next) => {
     res.json({
       eligible: refunds.isEligible(order) && !existing,
       goldUnspent: order.gold_unspent ?? 0,
+      windowHours: appSettings.getRefundWindowHours(),
       existingRequest: existing,
     });
   } catch (err) {
@@ -44,8 +46,7 @@ router.post('/', requireAuth, async (req, res, next) => {
       reasonDetail
     );
 
-    const processed = await refunds.processRefund(request.id);
-    res.status(201).json({ refund: processed });
+    res.status(201).json({ request });
   } catch (err) {
     if (err.message.includes('not eligible') || err.message.includes('already')) {
       return res.status(400).json({ error: err.message });

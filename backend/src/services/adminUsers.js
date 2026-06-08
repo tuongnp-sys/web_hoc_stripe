@@ -23,7 +23,11 @@ async function listUsers({ search = '', limit = 50, offset = 0, actor = null } =
   const { rows } = await getPool().query(
     `SELECT u.id, u.email, u.role, u.email_verified, u.oauth_provider, u.is_root,
             u.account_status, u.admin_scope, u.created_at,
-            COALESCE(w.gold_balance, 0) AS gold_balance
+            COALESCE(w.gold_balance, 0) AS gold_balance,
+            COALESCE((
+              SELECT COUNT(*)::int FROM refund_requests rr
+              WHERE rr.user_id = u.id AND rr.status = 'pending'
+            ), 0) AS pending_refund_count
      FROM users u
      LEFT JOIN wallets w ON w.user_id = u.id
      ${where}
@@ -54,9 +58,15 @@ async function getUserDetail(userId, actor = null) {
     wallet.getBalance(userId),
     entitlements.listForUser(userId),
     getPool().query(
-      `SELECT id, product_key, amount, currency, status, mode, gold_amount, gold_unspent,
-              access_enabled, admin_note, description, created_at, paid_at
-       FROM orders WHERE user_id = $1 ORDER BY created_at DESC LIMIT 100`,
+      `SELECT o.id, o.product_key, o.amount, o.currency, o.status, o.mode, o.gold_amount,
+              o.gold_unspent, o.access_enabled, o.admin_note, o.description, o.created_at, o.paid_at,
+              r.id AS refund_request_id, r.status AS refund_request_status,
+              r.reason AS refund_reason, r.reason_detail, r.created_at AS refund_requested_at
+       FROM orders o
+       LEFT JOIN refund_requests r ON r.order_id = o.id
+       WHERE o.user_id = $1
+       ORDER BY o.created_at DESC
+       LIMIT 100`,
       [userId]
     ),
     actor ? adminAccess.buildTargetActions(actor.id, rows[0]) : null,
@@ -345,28 +355,139 @@ async function adjustGold(actor, userId, amount, note) {
 }
 
 async function listProducts() {
-  const { rows } = await getPool().query(
-    `SELECT product_key, name, mode, enabled, updated_at FROM product_catalog ORDER BY product_key`
-  );
-  return rows;
+  const productCatalog = require('./productCatalog');
+  const [merged, catalogRows] = await Promise.all([
+    productCatalog.resolveAllProducts(),
+    productCatalog.getAllCatalogRows(),
+  ]);
+  const updatedByKey = new Map(catalogRows.map((r) => [r.product_key, r.updated_at]));
+
+  return merged.map((p) => ({
+    product_key: p.key,
+    name: p.name,
+    mode: p.mode,
+    enabled: p.enabled,
+    category: p.category,
+    description: p.description,
+    amount_cents: p.amount,
+    default_amount_cents: p.defaultAmount,
+    display_price: p.displayPrice,
+    badge: p.badge,
+    savings: p.savings,
+    sort_order: p.sortOrder,
+    price_overridden: p.priceOverridden,
+    gold: p.gold,
+    energy: p.energy,
+    updated_at: updatedByKey.get(p.key) || null,
+  }));
 }
 
 async function setProductEnabled(actor, productKey, enabled) {
+  return updateProduct(actor, productKey, { enabled });
+}
+
+async function updateProduct(actor, productKey, fields) {
   adminAccess.assertMinScope(actor, 'edit');
   const adminId = actor.id;
+  const stripeService = require('./stripe');
+  const base = stripeService.PRODUCTS[productKey];
+  if (!base) {
+    const err = new Error('Product not found');
+    err.status = 404;
+    throw err;
+  }
+
+  const updates = [];
+  const values = [productKey];
+  let idx = 2;
+
+  if (fields.enabled !== undefined) {
+    updates.push(`enabled = $${idx++}`);
+    values.push(Boolean(fields.enabled));
+  }
+  if (fields.name !== undefined) {
+    const name = String(fields.name).trim();
+    if (!name || name.length > 80) {
+      const err = new Error('Name must be 1–80 characters');
+      err.status = 400;
+      throw err;
+    }
+    updates.push(`name = $${idx++}`);
+    values.push(name);
+  }
+  if (fields.description !== undefined) {
+    updates.push(`description = $${idx++}`);
+    values.push(fields.description ? String(fields.description).trim() : null);
+  }
+  if (fields.badge !== undefined) {
+    updates.push(`badge = $${idx++}`);
+    values.push(fields.badge ? String(fields.badge).trim() : null);
+  }
+  if (fields.savings !== undefined) {
+    updates.push(`savings = $${idx++}`);
+    values.push(fields.savings ? String(fields.savings).trim() : null);
+  }
+  if (fields.sortOrder !== undefined) {
+    updates.push(`sort_order = $${idx++}`);
+    values.push(Number(fields.sortOrder) || 0);
+  }
+  if (fields.amountCents !== undefined) {
+    if (fields.amountCents === null) {
+      updates.push(`amount_cents = NULL`);
+      updates.push(`price_overridden = FALSE`);
+    } else {
+      const cents = Number(fields.amountCents);
+      if (!Number.isInteger(cents) || cents < 50 || cents > 999999) {
+        const err = new Error('Price must be between $0.50 and $9,999.99');
+        err.status = 400;
+        throw err;
+      }
+      updates.push(`amount_cents = $${idx++}`);
+      values.push(cents);
+      updates.push(`price_overridden = $${idx++}`);
+      values.push(cents !== base.amount);
+    }
+  }
+
+  if (!updates.length) {
+    const err = new Error('No fields to update');
+    err.status = 400;
+    throw err;
+  }
+
+  updates.push('updated_at = NOW()');
 
   const { rows } = await getPool().query(
-    `UPDATE product_catalog SET enabled = $2, updated_at = NOW()
+    `UPDATE product_catalog SET ${updates.join(', ')}
      WHERE product_key = $1 RETURNING *`,
-    [productKey, Boolean(enabled)]
+    values
   );
   if (!rows[0]) {
     const err = new Error('Product not found');
     err.status = 404;
     throw err;
   }
-  await audit.logAction(adminId, 'product.toggle', 'product', productKey, { enabled });
-  return rows[0];
+
+  await audit.logAction(adminId, 'product.update', 'product', productKey, fields);
+
+  const productCatalog = require('./productCatalog');
+  const resolved = await productCatalog.resolveProduct(productKey);
+  return {
+    product_key: resolved.key,
+    name: resolved.name,
+    mode: resolved.mode,
+    enabled: resolved.enabled,
+    category: resolved.category,
+    description: resolved.description,
+    amount_cents: resolved.amount,
+    default_amount_cents: resolved.defaultAmount,
+    display_price: resolved.displayPrice,
+    badge: resolved.badge,
+    savings: resolved.savings,
+    sort_order: resolved.sortOrder,
+    price_overridden: resolved.priceOverridden,
+    updated_at: rows[0].updated_at,
+  };
 }
 
 module.exports = {
@@ -380,4 +501,5 @@ module.exports = {
   adjustGold,
   listProducts,
   setProductEnabled,
+  updateProduct,
 };

@@ -22,6 +22,8 @@ export default function Login() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const oauth = useOAuthAvailability();
+  const returnTo = params.get('return') || '/';
+  const safeReturn = returnTo.startsWith('/') && !returnTo.startsWith('//') ? returnTo : '/';
 
   useEffect(() => {
     const oauthError = params.get('error');
@@ -50,15 +52,15 @@ export default function Login() {
           const parsedUser = JSON.parse(decodeURIComponent(userJson));
           setSession(token, parsedUser);
           window.history.replaceState(null, '', '/login');
-          navigate('/');
+          navigate(safeReturn);
         } catch {
           setError('Social login failed');
         }
       }
     }
-  }, [params, navigate, setSession]);
+  }, [params, navigate, setSession, safeReturn]);
 
-  if (user) return <Navigate to="/" replace />;
+  if (user) return <Navigate to={safeReturn} replace />;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -66,7 +68,7 @@ export default function Login() {
     setLoading(true);
     try {
       await login(email, password);
-      navigate('/');
+      navigate(safeReturn);
     } catch (err) {
       if (err.code === ACCOUNT_SUSPENDED_CODE) {
         setError(ACCOUNT_SUSPENDED_MESSAGE);

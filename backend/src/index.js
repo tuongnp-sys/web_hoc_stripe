@@ -20,6 +20,9 @@ const refundsRoutes = require('./routes/refunds');
 const invoicesRoutes = require('./routes/invoices');
 const oauthRoutes = require('./routes/oauth');
 const stripeRoutes = require('./routes/stripe');
+const gameRoutes = require('./routes/game');
+const policyRoutes = require('./routes/policy');
+const { refreshRefundWindowCache } = require('./services/appSettings');
 
 const app = express();
 app.set('trust proxy', 1);
@@ -69,6 +72,8 @@ app.use('/api/invoices', invoicesRoutes);
 app.use('/api/oauth', oauthRoutes);
 app.use('/api/stripe', stripeRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/game', gameRoutes);
+app.use('/api/policy', policyRoutes);
 
 app.use(errorHandler);
 
@@ -78,6 +83,7 @@ async function start() {
   await migrate();
   await hydrateOAuthFromDb();
   await ensureDevAdmin();
+  await refreshRefundWindowCache();
   app.listen(config.port, () => {
     console.log(`API:    http://localhost:${config.port}`);
     console.log(`Client: ${config.clientUrl}`);
